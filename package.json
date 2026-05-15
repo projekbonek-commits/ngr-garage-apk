@@ -3,11 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "dependencies": {
-    "@capacitor/android": "latest",
-    "@capacitor/core": "latest",
-    "@capacitor/geolocation": "latest"
+    "@capacitor/android": "6.1.2",
+    "@capacitor/core": "6.1.2"
   },
   "devDependencies": {
-    "@capacitor/cli": "latest"
+    "@capacitor/cli": "6.1.2"
   }
 }
