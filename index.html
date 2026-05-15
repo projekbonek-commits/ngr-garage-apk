@@ -160,6 +160,13 @@
               </div>
               <div class="mod-list" id="mod-list"></div>
             </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div><h2>Link Library</h2><p>Link toko, referensi part, video, dan inspirasi modif.</p></div>
+                <button class="pill-btn" data-action="link">+ Link</button>
+              </div>
+              <div class="link-library" id="link-library"></div>
+            </div>
           </div>
 
           <div id="garage-style" class="garage-pane">
@@ -250,7 +257,8 @@
               <button class="mini-link" id="btn-save-ai-settings">Simpan</button>
             </div>
             <label class="field"><span>API Key</span><input id="ai-key" type="password" placeholder="sk-... / key OpenRouter" autocomplete="off" /></label>
-            <label class="field"><span>Model ID</span><input id="ai-model" type="text" placeholder="openai/gpt-4o-mini" /></label>
+            <label class="field"><span>Model ID</span><input id="ai-model" type="text" placeholder="openrouter/free" /></label>
+            <div class="model-presets" id="ai-model-presets"></div>
             <label class="field"><span>Base URL</span><input id="ai-base-url" type="url" placeholder="https://openrouter.ai/api/v1/chat/completions" /></label>
           </div>
           <div class="chat" id="chat-list"></div>
@@ -277,6 +285,7 @@
         <button data-action="quick-service"><span data-icon="wrench"></span>Service</button>
         <button data-action="expense"><span data-icon="money"></span>Expense</button>
         <button data-action="modif"><span data-icon="star"></span>Modif</button>
+        <button data-action="link"><span data-icon="link"></span>Link</button>
       </div>
     </div>
 

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3.2;
+  const VERSION = 3.3;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -40,7 +40,9 @@
     star:'<path d="m12 2 3 6 7 .9-5 4.9 1.2 7-6.2-3.3-6.2 3.3 1.2-7-5-4.9L9 8l3-6Z"/>',
     check:'<path d="m20 6-11 11-5-5"/>',
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',
-    pin:'<path d="M12 21s7-4.7 7-11a7 7 0 1 0-14 0c0 6.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/>'
+    pin:'<path d="M12 21s7-4.7 7-11a7 7 0 1 0-14 0c0 6.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/>',
+    image:'<rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-5-5L5 19"/>',
+    link:'<path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1"/>'
   };
   const iconSvg = name => `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.wrench}</svg>`;
   function hydrateIcons(root = document){ $$('[data-icon]', root).forEach(n => { n.innerHTML = iconSvg(n.dataset.icon); }); }
@@ -73,6 +75,15 @@
     {id:'pertalite', name:'Pertalite', price:10000, color:'#35d07f'},
     {id:'pertamax', name:'Pertamax', price:12300, color:'#2d8cff'},
     {id:'shell-super', name:'Shell Super', price:13370, color:'#ff9f43'}
+  ];
+
+  const DEFAULT_AI_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+  const DEFAULT_AI_MODEL = 'openrouter/free';
+  const AI_MODEL_PRESETS = [
+    {id:'openrouter/free', name:'OpenRouter Free', note:'otomatis pilih model free'},
+    {id:'openrouter/auto', name:'Auto Router', note:'pilih model otomatis'},
+    {id:'openai/gpt-4o-mini', name:'GPT-4o Mini', note:'manual jika tersedia'},
+    {id:'deepseek/deepseek-chat-v3-0324:free', name:'DeepSeek Free', note:'opsi free populer'}
   ];
 
   const SERVICE_PACKAGES = [
@@ -113,7 +124,8 @@
         ...oldNotes.filter(n=>n.spend).map(n => ({id:uid(), category:'Other', title:n.text||'Catatan biaya', amount:safeNum(n.spend), ts:n.ts||Date.now(), note:'Migrasi catatan lama'}))
       ].sort((a,b)=>b.ts-a.ts),
       rides:[],
-      ai:{ key:'', model:'openai/gpt-4o-mini', baseUrl:'https://openrouter.ai/api/v1/chat/completions', chat:[] }
+      ai:{ key:'', model:DEFAULT_AI_MODEL, baseUrl:DEFAULT_AI_BASE_URL, chat:[] },
+      links: oldMods.filter(m=>m.link).map(m => ({id:uid(), title:m.name||'Link part', url:m.link, category:'Modif', note:'Migrasi dari wishlist', ts:m.ts||Date.now()}))
     };
   }
   let state = getLS(LS_KEY, null);
@@ -131,11 +143,64 @@
       ai: {...def.ai, ...(state.ai || {})},
       serviceComponents: (state.serviceComponents && state.serviceComponents.length) ? state.serviceComponents : def.serviceComponents,
       bikeChecks: (state.bikeChecks && state.bikeChecks.length) ? state.bikeChecks : def.bikeChecks,
-      fuels: state.fuels || [], mods: state.mods || [], styles: state.styles || [], expenses: state.expenses || [], rides: state.rides || []
+      fuels: state.fuels || [], mods: state.mods || [], styles: state.styles || [], expenses: state.expenses || [], rides: state.rides || [], links: state.links || []
     };
   }
+  state.ai.model = normalizeModelId(state.ai.model);
+  state.ai.baseUrl = state.ai.baseUrl || DEFAULT_AI_BASE_URL;
+  if(!state.links) state.links = [];
   if(!state.version || state.version < VERSION){ state.version = VERSION; save(); }
   function save(){ setLS(LS_KEY, state); }
+
+  function normalizeModelId(value){
+    let v = String(value || '').trim().replace(/\s+/g, '');
+    const looksBroken = !v || v.includes('gpt-4o-minideepseek') || v.includes('deepseek-v4') || v.includes('undefined') || v.split('/').length > 3;
+    return looksBroken ? DEFAULT_AI_MODEL : v;
+  }
+
+  function cleanAiError(raw, status){
+    let msg = raw || 'request gagal';
+    try {
+      const data = JSON.parse(raw);
+      msg = data?.error?.message || data?.message || msg;
+    } catch {}
+    if(String(msg).includes('not a valid model ID')) msg = 'Model ID tidak valid. Pilih preset OpenRouter Free / Auto dulu di API Settings.';
+    return `AI error ${status}: ${msg}`;
+  }
+
+  function readImageFile(inputOrFile, maxSize=960, quality=.76){
+    const file = inputOrFile?.files ? inputOrFile.files[0] : inputOrFile;
+    return new Promise((resolve, reject) => {
+      if(!file) return resolve('');
+      if(!file.type || !file.type.startsWith('image/')) return reject(new Error('File harus gambar'));
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error('Gagal baca foto'));
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => resolve(reader.result);
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function photoPicker(inputId, previewId, current=''){
+    return `<div class="photo-pick">
+      <input id="${inputId}" type="file" accept="image/*" data-preview="${previewId}" hidden />
+      <button type="button" class="photo-btn" data-action="pick-photo" data-target="${inputId}"><span data-icon="image"></span><b>Tambah Foto</b><small>galeri / kamera</small></button>
+      <img id="${previewId}" class="photo-preview" src="${esc(current)}" style="display:${current ? 'block' : 'none'}" alt="preview" />
+    </div>`;
+  }
 
   function toast(msg, type='ok'){
     const t = el('toast'); t.textContent = msg; t.className = 'toast show' + (type==='err'?' err':'');
@@ -316,16 +381,33 @@
     const s = state.savings; const left = Math.max(0, safeNum(s.target)-safeNum(s.collected)); const pct = s.target ? clamp(s.collected/s.target*100,0,100) : 0;
     el('saving-collected').textContent = fmt.rp(s.collected); el('saving-target').textContent = fmt.rp(s.target); el('saving-left').textContent = fmt.rp(left); el('saving-bar').style.width = pct + '%';
     el('mod-list').innerHTML = state.mods.length ? state.mods.map(m=>`<div class="mod-card">
-      <div class="row-icon" data-icon="star"></div><div class="row-content"><b>${esc(m.name)}</b><small>${fmt.rp(m.price)} · ${esc(m.status)}${m.note?' · '+esc(m.note):''}</small></div>
+      ${m.img ? `<img class="item-thumb" src="${esc(m.img)}" alt="${esc(m.name)}" />` : `<div class="row-icon" data-icon="star"></div>`}
+      <div class="row-content"><b>${esc(m.name)}</b><small>${fmt.rp(m.price)} · ${esc(m.status)}${m.note?' · '+esc(m.note):''}</small>${m.link ? `<a class="inline-link" href="${esc(m.link)}" target="_blank" rel="noopener">Buka link toko</a>` : ''}</div>
       <span class="status-pill ${m.status==='terpasang'?'ok':m.status==='dibeli'?'warn':''}">${esc(m.status)}</span>
     </div>`).join('') : `<div class="empty">Belum ada wishlist part.</div>`;
+    renderLinkLibrary();
     renderIconsLater(el('mod-list'));
   }
   function renderStyles(){
-    el('style-list').innerHTML = state.styles.length ? state.styles.map(s=>`<div class="style-card">
-      <div class="row-icon" data-icon="star"></div><div class="row-content"><b>${esc(s.name)}</b><small>${esc(s.desc)} · ${fmt.rp(s.budget)} · ${esc(s.status)}</small></div>
+    el('style-list').innerHTML = state.styles.length ? state.styles.map(st=>`<div class="style-card">
+      ${st.img ? `<img class="item-thumb wide" src="${esc(st.img)}" alt="${esc(st.name)}" />` : `<div class="row-icon" data-icon="star"></div>`}
+      <div class="row-content"><b>${esc(st.name)}</b><small>${esc(st.desc)} · ${fmt.rp(st.budget)} · ${esc(st.status)}</small>${st.link ? `<a class="inline-link" href="${esc(st.link)}" target="_blank" rel="noopener">Buka referensi</a>` : ''}</div>
     </div>`).join('') : `<div class="empty">Belum ada ide style. Tambah konsep modifan pertama.</div>`;
     renderIconsLater(el('style-list'));
+  }
+  function getLinkLibrary(){
+    const manual = (state.links || []).map(l => ({...l, source:'Library'}));
+    const modLinks = state.mods.filter(m=>m.link).map(m => ({id:'mod-'+m.id, title:m.name, url:m.link, category:'Modif', note:m.status, ts:m.ts, source:'Part'}));
+    const styleLinks = state.styles.filter(st=>st.link).map(st => ({id:'style-'+st.id, title:st.name, url:st.link, category:'Style', note:st.status, ts:st.ts, source:'Style'}));
+    return [...manual, ...modLinks, ...styleLinks].sort((a,b)=>safeNum(b.ts)-safeNum(a.ts));
+  }
+  function renderLinkLibrary(){
+    const box = el('link-library'); if(!box) return;
+    const links = getLinkLibrary();
+    box.innerHTML = links.length ? links.slice(0,30).map(l=>`<a class="link-card" href="${esc(l.url)}" target="_blank" rel="noopener">
+      <span data-icon="link"></span><div><b>${esc(l.title || 'Link')}</b><small>${esc(l.category || 'Link')} · ${esc(l.source || '')}${l.note ? ' · ' + esc(l.note) : ''}</small></div>
+    </a>`).join('') : `<div class="empty">Belum ada link. Simpan link toko / referensi modif di sini.</div>`;
+    renderIconsLater(box);
   }
   function monthFilter(ts){ const d=new Date(ts), n=new Date(); return d.getMonth()===n.getMonth() && d.getFullYear()===n.getFullYear(); }
   function renderExpenses(){
@@ -369,8 +451,14 @@
   function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 
   function renderAI(){
-    el('ai-key').value = state.ai.key || ''; el('ai-model').value = state.ai.model || 'openai/gpt-4o-mini'; el('ai-base-url').value = state.ai.baseUrl || 'https://openrouter.ai/api/v1/chat/completions';
-    const intro = {role:'assistant', content:'Halo bos! Kang Rusdi siap baca data NGR Health, service, fuel, bike check, modif, dan expense. Tanya aja kondisi Beat kamu.'};
+    el('ai-key').value = state.ai.key || '';
+    el('ai-model').value = normalizeModelId(state.ai.model || DEFAULT_AI_MODEL);
+    el('ai-base-url').value = state.ai.baseUrl || DEFAULT_AI_BASE_URL;
+    const presets = el('ai-model-presets');
+    if(presets){
+      presets.innerHTML = AI_MODEL_PRESETS.map(p=>`<button type="button" class="model-chip ${p.id===el('ai-model').value?'active':''}" data-action="ai-model-preset" data-model="${esc(p.id)}"><b>${esc(p.name)}</b><small>${esc(p.note)}</small></button>`).join('');
+    }
+    const intro = {role:'assistant', content:'Halo bos! Kang Rusdi siap baca data NGR Health, service, fuel, bike check, modif, link library, foto part, dan expense. Tanya aja kondisi Beat kamu.'};
     const msgs = state.ai.chat.length ? state.ai.chat : [intro];
     el('chat-list').innerHTML = msgs.map(m=>`<div class="bubble ${m.role==='user'?'user':'ai'}">${esc(m.content)}</div>`).join('');
     requestAnimationFrame(()=>{ const s=el('ai-scroll'); s.scrollTop=s.scrollHeight; });
@@ -557,8 +645,9 @@
       {value:'dibeli', label:'Dibeli', sub:'sudah keluar uang', icon:'money', tone:'warn'},
       {value:'terpasang', label:'Terpasang', sub:'sudah di motor', icon:'check', tone:'ok'}
     ];
-    openSheet(`${sheetTitle('Tambah Part Modif', 'Floating card input, bukan form jadul.')}
+    openSheet(`${sheetTitle('Tambah Part Modif', 'Foto + link toko masuk Link Library otomatis.')}
       <label class="field hero-input"><span>Nama Part</span><input id="mod-name" placeholder="Velg, shock, lampu..." /></label>
+      ${photoPicker('mod-img','mod-img-preview')}
       <div class="mini-caption">Status part</div>
       ${smartPicker('mod-status-picker', statusOptions, 'wishlist', 'status-picker')}
       <div class="form-grid"><label class="field"><span>Harga</span><input id="mod-price" type="number" placeholder="850000" /></label><label class="field"><span>Kategori</span><input id="mod-cat" placeholder="Kaki-kaki, body..." /></label></div>
@@ -566,11 +655,14 @@
       <label class="field"><span>Catatan</span><textarea id="mod-note" placeholder="Alasan, style, spek..."></textarea></label>
       <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-modif">Simpan</button></div>`);
   }
-  function saveModif(){
+  async function saveModif(){
     const name=el('mod-name').value.trim(); if(!name) return toast('Nama part wajib diisi', 'err'); const price=safeNum(el('mod-price').value); const status=getPickerValue('mod-status-picker') || 'wishlist';
-    state.mods.unshift({id:uid(), name, price, status, link:el('mod-link').value.trim(), img:'', note:el('mod-note').value.trim(), category:el('mod-cat').value.trim()||'Modif', ts:Date.now()});
+    let img = ''; try { img = el('mod-img')._dataUrl || await readImageFile(el('mod-img')); } catch(e){ toast(e.message, 'err'); return; }
+    const link = el('mod-link').value.trim();
+    state.mods.unshift({id:uid(), name, price, status, link, img, note:el('mod-note').value.trim(), category:el('mod-cat').value.trim()||'Modif', ts:Date.now()});
+    if(link && !state.links.some(l=>l.url===link)) state.links.unshift({id:uid(), title:name, url:link, category:'Modif', note:'Dari part modif', ts:Date.now()});
     if(price && status !== 'wishlist') state.expenses.unshift({id:uid(), category:'Modif', title:name, amount:price, ts:Date.now(), note:status});
-    save(); closeSheet(); toast('Part tersimpan'); renderAll();
+    save(); closeSheet(); toast('Part + foto/link tersimpan'); renderAll();
   }
   function openStyleSheet(){
     const styleStatus = [
@@ -578,15 +670,42 @@
       {value:'Proses', label:'Proses', sub:'lagi dibangun', icon:'wrench', tone:'warn'},
       {value:'Selesai', label:'Selesai', sub:'final look', icon:'check', tone:'ok'}
     ];
-    openSheet(`${sheetTitle('Style Idea', 'Konsep modifan clean, pakai status card modern.')}
+    openSheet(`${sheetTitle('Style Idea', 'Bisa simpan foto referensi + link inspirasi.')}
       <label class="field hero-input"><span>Nama Konsep</span><input id="style-name" placeholder="Daily Proper Dark Blue" /></label>
+      ${photoPicker('style-img','style-img-preview')}
       <label class="field"><span>Deskripsi</span><textarea id="style-desc" placeholder="Velg silver, ban proper, decal minimal..."></textarea></label>
+      <label class="field"><span>Link referensi</span><input id="style-link" placeholder="https://..." /></label>
       <div class="mini-caption">Status style</div>
       ${smartPicker('style-status-picker', styleStatus, 'Ide', 'status-picker')}
       <label class="field"><span>Estimasi Budget</span><input id="style-budget" type="number" placeholder="2500000" /></label>
       <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-style">Simpan</button></div>`);
   }
-  function saveStyle(){ const name=el('style-name').value.trim(); if(!name) return toast('Nama style wajib diisi','err'); state.styles.unshift({id:uid(), name, desc:el('style-desc').value.trim(), budget:safeNum(el('style-budget').value), status:getPickerValue('style-status-picker') || 'Ide', ts:Date.now()}); save(); closeSheet(); toast('Style disimpan'); renderAll(); }
+  async function saveStyle(){
+    const name=el('style-name').value.trim(); if(!name) return toast('Nama style wajib diisi','err');
+    let img = ''; try { img = el('style-img')._dataUrl || await readImageFile(el('style-img')); } catch(e){ toast(e.message, 'err'); return; }
+    const link = el('style-link').value.trim();
+    const item = {id:uid(), name, desc:el('style-desc').value.trim(), budget:safeNum(el('style-budget').value), status:getPickerValue('style-status-picker') || 'Ide', link, img, ts:Date.now()};
+    state.styles.unshift(item);
+    if(link && !state.links.some(l=>l.url===link)) state.links.unshift({id:uid(), title:name, url:link, category:'Style', note:'Referensi style', ts:Date.now()});
+    save(); closeSheet(); toast('Style + foto/link disimpan'); renderAll();
+  }
+  function openLinkSheet(){
+    const cats = ['Modif','Style','Service','Sparepart','Tools','Other'].map(c=>({value:c, label:c, sub:c==='Modif'?'link part':c==='Style'?'referensi look':'link penting', icon:c==='Style'?'star':c==='Modif'?'link':'link'}));
+    openSheet(`${sheetTitle('Link Library', 'Simpan link toko, referensi part, video, atau inspirasi modif.')}
+      <label class="field hero-input"><span>Judul Link</span><input id="link-title" placeholder="Velg / shock / referensi style" /></label>
+      <label class="field"><span>URL</span><input id="link-url" type="url" placeholder="https://..." /></label>
+      <div class="mini-caption">Kategori</div>
+      ${smartPicker('link-cat-picker', cats, 'Modif', 'status-picker')}
+      <label class="field"><span>Catatan</span><textarea id="link-note" placeholder="harga, toko, ukuran, catatan..."></textarea></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-link">Simpan Link</button></div>`);
+  }
+  function saveLink(){
+    const title = el('link-title').value.trim(); const url = el('link-url').value.trim();
+    if(!title || !url) return toast('Judul/link belum lengkap', 'err');
+    state.links.unshift({id:uid(), title, url, category:getPickerValue('link-cat-picker') || 'Modif', note:el('link-note').value.trim(), ts:Date.now()});
+    save(); closeSheet(); toast('Link masuk library'); renderAll();
+  }
+
   function openExpenseSheet(){
     const cats = ['Service','Modif','Fuel','Tools','Sparepart','Other'].map(c=>({value:c, label:c, sub:c==='Fuel'?'BBM':c==='Service'?'perawatan':c==='Modif'?'part/style':'biaya', icon:c==='Fuel'?'fuel':c==='Modif'?'star':c==='Service'?'wrench':'money'}));
     openSheet(`${sheetTitle('Tambah Expense', 'Semua biaya masuk history detail.')}
@@ -652,11 +771,11 @@
     save(); closeSheet(); toast(toKm ? 'Ride masuk Virtual KM' : 'Ride disimpan sebagai log'); renderAll();
   }
 
-  function saveAISettings(){ state.ai.key=el('ai-key').value.trim(); state.ai.model=el('ai-model').value.trim()||'openai/gpt-4o-mini'; state.ai.baseUrl=el('ai-base-url').value.trim()||'https://openrouter.ai/api/v1/chat/completions'; save(); toast('AI settings disimpan'); }
+  function saveAISettings(){ state.ai.key=el('ai-key').value.trim(); state.ai.model=normalizeModelId(el('ai-model').value || DEFAULT_AI_MODEL); state.ai.baseUrl=el('ai-base-url').value.trim()||DEFAULT_AI_BASE_URL; el('ai-model').value = state.ai.model; save(); toast('AI settings disimpan'); renderAI(); }
   function appContext(){
     const worst = state.serviceComponents.map(c=>({name:c.name, health:serviceHealth(c).pct, left:componentSub(serviceHealth(c))})).sort((a,b)=>a.health-b.health).slice(0,5);
     const bad = state.bikeChecks.filter(p=>p.status!=='ok').slice(0,8).map(p=>`${p.name}: ${partStatusLabel(p.status)}`);
-    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Health: ${healthScore()}%. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia.`;
+    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Health: ${healthScore()}%. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia.`;
   }
   async function sendAI(){
     const input = el('ai-input'); const text = input.value.trim(); if(!text) return; if(!state.ai.key) return toast('Isi API Key dulu', 'err');
@@ -664,11 +783,12 @@
     state.ai.chat.push({role:'assistant', content:'Kang Rusdi mikir dulu...'}); renderAI();
     try{
       const messages = [{role:'system', content:appContext()}, ...state.ai.chat.filter(m=>m.content!=='Kang Rusdi mikir dulu...').slice(-12)];
-      const res = await fetch(state.ai.baseUrl, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.ai.key,'X-Title':'NGR Health Garage'}, body:JSON.stringify({model:state.ai.model, messages})});
-      if(!res.ok) throw new Error(await res.text()); const data = await res.json();
+      const model = normalizeModelId(state.ai.model);
+      const res = await fetch(state.ai.baseUrl || DEFAULT_AI_BASE_URL, {method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+state.ai.key,'X-Title':'NGR Health Garage'}, body:JSON.stringify({model, messages})});
+      if(!res.ok) throw new Error(cleanAiError(await res.text(), res.status)); const data = await res.json();
       const reply = data.choices?.[0]?.message?.content || data.output_text || 'Maaf bos, respon kosong.';
       state.ai.chat[state.ai.chat.length-1] = {role:'assistant', content:reply}; save(); renderAI();
-    }catch(e){ state.ai.chat[state.ai.chat.length-1] = {role:'assistant', content:'Error AI: ' + (e.message || e)}; save(); renderAI(); }
+    }catch(e){ state.ai.chat[state.ai.chat.length-1] = {role:'assistant', content:'⚠️ ' + (e.message || e)}; save(); renderAI(); }
   }
 
   function exportData(){ const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ngr-health-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
@@ -678,13 +798,18 @@
   function renderAll(){ renderHome(); renderGarage(); renderFuel(); renderAI(); hydrateIcons(); }
 
   function openProfileSheet(){
-    openSheet(`${sheetTitle('Profil Motor', 'Logo PWA pakai icon-192.png dan icon-512.png.')}
+    openSheet(`${sheetTitle('Profil Motor', 'Foto motor juga bisa disimpan lokal.')}
+      ${photoPicker('prof-img','prof-img-preview', state.profile.image || '')}
       <label class="field"><span>Nama Motor</span><input id="prof-name" value="${esc(state.profile.name)}" /></label>
       <div class="form-grid"><label class="field"><span>Plat</span><input id="prof-plate" value="${esc(state.profile.plate)}" /></label><label class="field"><span>Warna</span><input id="prof-color" value="${esc(state.profile.color)}" /></label></div>
       <label class="field"><span>Virtual KM</span><input id="prof-km" type="number" value="${state.profile.virtualKm}" /></label>
       <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-profile">Simpan</button></div>`);
   }
-  function saveProfile(){ state.profile.name=el('prof-name').value.trim()||'Honda Beat FI 2014'; state.profile.plate=el('prof-plate').value.trim(); state.profile.color=el('prof-color').value.trim(); state.profile.virtualKm=safeNum(el('prof-km').value); save(); closeSheet(); toast('Profil disimpan'); renderAll(); }
+  async function saveProfile(){
+    state.profile.name=el('prof-name').value.trim()||'Honda Beat FI 2014'; state.profile.plate=el('prof-plate').value.trim(); state.profile.color=el('prof-color').value.trim(); state.profile.virtualKm=safeNum(el('prof-km').value);
+    try { const img = el('prof-img')._dataUrl || await readImageFile(el('prof-img')); if(img) state.profile.image = img; } catch(e){ toast(e.message, 'err'); return; }
+    save(); closeSheet(); toast('Profil disimpan'); renderAll();
+  }
 
   function toggleDial(){ el('fab-main').classList.toggle('open'); el('speed-dial').classList.toggle('open'); }
   function closeDial(){ el('fab-main').classList.remove('open'); el('speed-dial').classList.remove('open'); }
@@ -713,6 +838,7 @@
       'modif': openModifSheet,
       'style': openStyleSheet,
       'expense': openExpenseSheet,
+      'link': openLinkSheet,
       'ride': openRideSheet,
       'add-custom-km': () => addKm(el('km-custom').value),
       'save-service': saveService,
@@ -722,6 +848,7 @@
       'save-saving': saveSaving,
       'save-modif': saveModif,
       'save-style': saveStyle,
+      'save-link': saveLink,
       'save-expense': saveExpense,
       'tracker-start': startTracker,
       'tracker-pause': pauseTracker,
@@ -730,9 +857,22 @@
       'log-ride-only': () => saveRide(false),
       'save-ride-km': () => saveRide(true)
     };
+    if(a === 'pick-photo') return el(target.dataset.target)?.click();
+    if(a === 'ai-model-preset'){ el('ai-model').value = target.dataset.model || DEFAULT_AI_MODEL; return saveAISettings(); }
     if(a === 'add-km') return addKm(target.dataset.km);
     if(a === 'fuel-shortcut') return openFuelSheet(target.dataset.fuel, safeNum(target.dataset.liter), false);
     if(actions[a]) return actions[a]();
+  });
+
+  document.addEventListener('change', async e => {
+    const input = e.target;
+    if(!input.matches('input[type="file"][data-preview]')) return;
+    try{
+      const data = await readImageFile(input);
+      input._dataUrl = data;
+      const img = el(input.dataset.preview);
+      if(img && data){ img.src = data; img.style.display = 'block'; }
+    }catch(err){ toast(err.message || 'Foto gagal dibaca', 'err'); input.value=''; }
   });
 
   el('fab-main').addEventListener('click', toggleDial);
