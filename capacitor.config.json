@@ -1,0 +1,6 @@
+{
+  "appId": "com.projekbonek.ngr",
+  "appName": "NGR Garage",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}

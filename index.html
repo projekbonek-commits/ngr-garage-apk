@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#080a0f" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="NGR" />
+  <title>NGR Health Garage</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-192.png" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <div class="brand">
+        <img src="icon-192.png" alt="NGR" class="brand-logo" />
+        <div>
+          <div class="brand-name">NGR Health</div>
+          <div class="brand-sub" id="brand-sub">Honda Beat FI 2014</div>
+        </div>
+      </div>
+      <button class="icon-btn" id="btn-profile" aria-label="Profil motor">
+        <svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12"/></svg>
+      </button>
+    </header>
+
+    <main id="main">
+      <section class="page active" id="page-home" data-page="home">
+        <div class="scroll">
+          <div class="hero-card reveal">
+            <div class="hero-top">
+              <div>
+                <p class="eyebrow">NGR HEALTH DASHBOARD</p>
+                <h1 id="home-bike-name">Honda Beat FI 2014</h1>
+                <p class="muted"><span id="home-bike-meta">Virtual Odometer aktif</span></p>
+              </div>
+              <div class="health-ring big" id="home-health-ring" style="--pct:100;--ring:#35d07f">
+                <span id="home-health-pct">100%</span>
+              </div>
+            </div>
+            <div class="odometer-card">
+              <div class="odo-icon" data-icon="speed"></div>
+              <div>
+                <div class="odo-label">Virtual KM</div>
+                <div class="odo-val" id="home-km">0 km</div>
+              </div>
+              <button class="pill-btn" data-action="open-km">+ KM</button>
+            </div>
+            <div class="status-strip" id="home-status-strip">
+              <span class="dot ok"></span>
+              <div>
+                <b id="home-status-title">All Good</b>
+                <small id="home-status-sub">Semua komponen utama aman.</small>
+              </div>
+            </div>
+          </div>
+
+          <div class="quick-row reveal delay-1">
+            <button class="quick-card go" id="quick-ride"><span data-icon="ride"></span><b>GO Ride</b><small>GPS Lite</small></button>
+            <button class="quick-card" data-action="quick-fuel"><span data-icon="fuel"></span><b>Fuel</b><small>Shortcut</small></button>
+            <button class="quick-card" data-action="quick-service"><span data-icon="wrench"></span><b>Service</b><small>Quick log</small></button>
+          </div>
+
+          <section class="panel reveal delay-2">
+            <div class="panel-head">
+              <div>
+                <h2>Component Healthy</h2>
+                <p>Ringkas, icon clean, warna langsung kebaca.</p>
+              </div>
+              <button class="mini-link" data-go="garage">Lihat semua</button>
+            </div>
+            <div class="component-grid" id="home-components"></div>
+          </section>
+
+          <section class="panel reveal delay-3">
+            <div class="panel-head slim">
+              <h2>Saran Kang Rusdi</h2>
+              <button class="mini-link" data-go="ai">Chat</button>
+            </div>
+            <div class="ai-insight" id="ai-insight"></div>
+          </section>
+
+          <section class="panel reveal delay-4">
+            <div class="panel-head slim">
+              <h2>Timeline Terbaru</h2>
+              <button class="mini-link" data-go="garage" data-garage-tab="expense">Detail</button>
+            </div>
+            <div class="timeline" id="home-timeline"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page" id="page-garage" data-page="garage">
+        <div class="scroll">
+          <div class="page-title reveal">
+            <p class="eyebrow">NGR GARAGE</p>
+            <h1>Service, Check, Modif</h1>
+          </div>
+          <div class="segmented reveal delay-1" id="garage-tabs">
+            <button class="active" data-garage-tab="service">Service</button>
+            <button data-garage-tab="check">Bike Check</button>
+            <button data-garage-tab="modif">Modif</button>
+            <button data-garage-tab="style">Style</button>
+            <button data-garage-tab="expense">Expense</button>
+          </div>
+
+          <div id="garage-service" class="garage-pane active">
+            <div class="panel reveal delay-2">
+              <div class="panel-head">
+                <div><h2>Maintenance Engine</h2><p>Hitung sehat dari KM + hari otomatis.</p></div>
+                <button class="pill-btn" data-action="quick-service">+ Service</button>
+              </div>
+              <div class="service-list" id="service-list"></div>
+            </div>
+          </div>
+
+          <div id="garage-check" class="garage-pane">
+            <div class="panel">
+              <div class="panel-head">
+                <div><h2>Full Bike Check</h2><p>Part dari depan sampai belakang.</p></div>
+                <button class="pill-btn" data-action="bike-check">+ Check</button>
+              </div>
+              <div id="check-list" class="check-list"></div>
+            </div>
+          </div>
+
+          <div id="garage-modif" class="garage-pane">
+            <div class="savings-card panel">
+              <div class="panel-head">
+                <div><h2>Celengan Modif</h2><p>Target, dana masuk, dana keluar.</p></div>
+                <button class="pill-btn" data-action="saving">+ Dana</button>
+              </div>
+              <div class="saving-amounts">
+                <div><span id="saving-collected">Rp 0</span><small>Terkumpul</small></div>
+                <div><span id="saving-target">Rp 0</span><small>Target</small></div>
+                <div><span id="saving-left">Rp 0</span><small>Kurang</small></div>
+              </div>
+              <div class="bar"><i id="saving-bar"></i></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div><h2>Wishlist & Part</h2><p>Wishlist, dibeli, terpasang.</p></div>
+                <button class="pill-btn" data-action="modif">+ Part</button>
+              </div>
+              <div class="mod-list" id="mod-list"></div>
+            </div>
+          </div>
+
+          <div id="garage-style" class="garage-pane">
+            <div class="panel">
+              <div class="panel-head">
+                <div><h2>Style Ideas</h2><p>Konsep modifan Beat kamu.</p></div>
+                <button class="pill-btn" data-action="style">+ Style</button>
+              </div>
+              <div class="style-list" id="style-list"></div>
+            </div>
+          </div>
+
+          <div id="garage-expense" class="garage-pane">
+            <div class="expense-summary reveal">
+              <div class="expense-card"><small>Bulan Ini</small><b id="exp-month">Rp 0</b></div>
+              <div class="expense-card"><small>Fuel</small><b id="exp-fuel">Rp 0</b></div>
+              <div class="expense-card"><small>Service</small><b id="exp-service">Rp 0</b></div>
+              <div class="expense-card"><small>Modif</small><b id="exp-modif">Rp 0</b></div>
+            </div>
+            <div class="panel">
+              <div class="panel-head">
+                <div><h2>Expense & History</h2><p>Semua pengeluaran detail masuk sini.</p></div>
+                <button class="pill-btn" data-action="expense">+ Expense</button>
+              </div>
+              <div class="utility-row">
+                <button class="ghost-btn" id="btn-export">Export</button>
+                <button class="ghost-btn" id="btn-import">Import</button>
+                <button class="ghost-btn danger" id="btn-reset">Reset</button>
+                <input type="file" id="import-file" accept="application/json" hidden />
+              </div>
+              <div class="timeline" id="expense-list"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-fuel" data-page="fuel">
+        <div class="scroll">
+          <div class="page-title reveal">
+            <p class="eyebrow">FUEL INTELLIGENCE</p>
+            <h1>Fuel unggulan NGR</h1>
+          </div>
+          <div class="fuel-hero panel reveal delay-1">
+            <div>
+              <p class="eyebrow">Estimasi bensin</p>
+              <h2 id="fuel-liters">0.0 L</h2>
+              <p id="fuel-range" class="muted">Range 0 km</p>
+            </div>
+            <div class="fuel-stats">
+              <div><b id="fuel-kml">55</b><small>km/L</small></div>
+              <div><b id="fuel-spend-month">Rp 0</b><small>bulan ini</small></div>
+            </div>
+          </div>
+
+          <section class="panel reveal delay-2">
+            <div class="panel-head">
+              <div><h2>Shortcut BBM</h2><p>Satu tap pilih, satu tap simpan.</p></div>
+              <button class="mini-link" data-action="fuel-settings">Harga</button>
+            </div>
+            <div class="fuel-shortcuts" id="fuel-shortcuts"></div>
+          </section>
+
+          <section class="panel reveal delay-3">
+            <div class="panel-head slim"><h2>Grafik Pengeluaran</h2></div>
+            <canvas id="fuel-chart" height="140"></canvas>
+          </section>
+
+          <section class="panel reveal delay-4">
+            <div class="panel-head">
+              <div><h2>Riwayat Fuel</h2><p>Fuel otomatis masuk expense.</p></div>
+              <button class="pill-btn" data-action="fuel-custom">+ Custom</button>
+            </div>
+            <div class="fuel-log" id="fuel-log"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="page" id="page-ai" data-page="ai">
+        <div class="scroll ai-scroll" id="ai-scroll">
+          <div class="page-title reveal">
+            <p class="eyebrow">KANG RUSDI AI</p>
+            <h1>Mekanik pribadi Beat FI</h1>
+          </div>
+          <div class="panel ai-settings reveal delay-1">
+            <div class="panel-head">
+              <div><h2>API Settings</h2><p>Key disimpan lokal di perangkat.</p></div>
+              <button class="mini-link" id="btn-save-ai-settings">Simpan</button>
+            </div>
+            <label class="field"><span>API Key</span><input id="ai-key" type="password" placeholder="sk-... / key OpenRouter" autocomplete="off" /></label>
+            <label class="field"><span>Model ID</span><input id="ai-model" type="text" placeholder="openai/gpt-4o-mini" /></label>
+            <label class="field"><span>Base URL</span><input id="ai-base-url" type="url" placeholder="https://openrouter.ai/api/v1/chat/completions" /></label>
+          </div>
+          <div class="chat" id="chat-list"></div>
+        </div>
+        <div class="chat-composer">
+          <input id="ai-input" placeholder="Tanya Kang Rusdi..." />
+          <button id="btn-ai-send" aria-label="Kirim"><svg viewBox="0 0 24 24"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z"/></svg></button>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="active" data-tab="home"><span data-icon="home"></span><b>Home</b></button>
+      <button data-tab="garage"><span data-icon="garage"></span><b>Garage</b></button>
+      <button data-tab="fuel"><span data-icon="fuel"></span><b>Fuel</b></button>
+      <button data-tab="ai"><span data-icon="ai"></span><b>AI</b></button>
+    </nav>
+
+    <div class="fab-wrap">
+      <button class="fab" id="fab-main" aria-label="Tambah data"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+      <div class="speed-dial" id="speed-dial">
+        <button data-action="ride"><span data-icon="ride"></span>Ride</button>
+        <button data-action="quick-fuel"><span data-icon="fuel"></span>Fuel</button>
+        <button data-action="quick-service"><span data-icon="wrench"></span>Service</button>
+        <button data-action="expense"><span data-icon="money"></span>Expense</button>
+        <button data-action="modif"><span data-icon="star"></span>Modif</button>
+      </div>
+    </div>
+
+    <div class="sheet-overlay" id="sheet-overlay"></div>
+    <aside class="sheet" id="sheet" aria-live="polite"></aside>
+    <div class="toast" id="toast"></div>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
