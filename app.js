@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3.1;
+  const VERSION = 3.2;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -73,6 +73,13 @@
     {id:'pertalite', name:'Pertalite', price:10000, color:'#35d07f'},
     {id:'pertamax', name:'Pertamax', price:12300, color:'#2d8cff'},
     {id:'shell-super', name:'Shell Super', price:13370, color:'#ff9f43'}
+  ];
+
+  const SERVICE_PACKAGES = [
+    {id:'light', name:'Servis Ringan', icon:'wrench', desc:'Oli, busi, filter, rem, ban', items:['oil-engine','spark-plug','air-filter','front-brake','rear-brake','front-tire','rear-tire']},
+    {id:'cvt', name:'Paket CVT', icon:'gear', desc:'Oli gardan, V-Belt, roller', items:['oil-gear','v-belt','roller']},
+    {id:'fuel-fi', name:'Paket FI Irit', icon:'filter', desc:'Filter udara, busi, injector/TB', items:['air-filter','spark-plug','injector']},
+    {id:'safety', name:'Paket Safety', icon:'brake', desc:'Rem, ban, aki, bearing', items:['front-brake','rear-brake','front-tire','rear-tire','battery','front-bearing','rear-bearing']}
   ];
 
   const LS_KEY = 'ngr_v2_state';
@@ -193,6 +200,32 @@
     return [...rides, ...exp].sort((a,b)=>b.ts-a.ts).slice(0,limit);
   }
 
+  function priorityItems(limit=5){
+    const svc = state.serviceComponents.map(c => {
+      const h = serviceHealth(c);
+      return {kind:'Service', name:c.name, icon:c.icon, pct:h.pct, tone:h.status, score:(100-h.pct)+(h.status==='danger'?45:h.status==='warn'?18:0), sub:componentSub(h), go:'service'};
+    });
+    const checks = state.bikeChecks.filter(p => p.status !== 'ok').map(p => {
+      const h = checkHealth(p);
+      return {kind:'Bike Check', name:p.name, icon:p.icon, pct:h.pct, tone:h.status, score:(100-h.pct)+(p.status==='broken'?45:p.status==='worn'?25:12), sub:partStatusLabel(p.status), go:'check'};
+    });
+    const fuel = fuelHealth();
+    const fuelItem = fuel.pct < 88 ? [{kind:'Fuel', name:'Konsumsi BBM', icon:'fuel', pct:fuel.pct, tone:fuel.pct<60?'danger':'warn', score:100-fuel.pct+10, sub:`${state.fuelState.kmPerLiter.toFixed(0)} km/L · pantau boros`, go:'fuel'}] : [];
+    return [...svc, ...checks, ...fuelItem].sort((a,b)=>b.score-a.score).slice(0, limit);
+  }
+  function renderPriorityList(){
+    const target = el('priority-list'); if(!target) return;
+    const items = priorityItems(5);
+    target.innerHTML = items.length ? items.map((it,i)=>`
+      <button class="priority-item ${it.tone}" data-go="${it.go==='fuel'?'fuel':'garage'}" ${it.go!=='fuel' ? `data-garage-tab="${it.go}"` : ''}>
+        <span class="priority-num">${i+1}</span>
+        <span class="row-icon" data-icon="${it.icon}"></span>
+        <span class="priority-main"><b>${esc(it.name)}</b><small>${esc(it.kind)} · ${esc(it.sub || 'cek detail')}</small></span>
+        ${ringHtml(it.pct)}
+      </button>`).join('') : `<div class="empty">Belum ada prioritas. Beat lagi aman.</div>`;
+    renderIconsLater(target);
+  }
+
   function renderHome(){
     el('brand-sub').textContent = state.profile.name;
     el('home-bike-name').textContent = state.profile.name;
@@ -220,6 +253,7 @@
         ${ringHtml(it.h.pct)}
       </button>`).join('') || `<div class="empty">Belum ada data komponen.</div>`;
     renderIconsLater(el('home-components'));
+    renderPriorityList();
     el('ai-insight').innerHTML = generateInsight();
     renderTimeline(el('home-timeline'), getTimeline(5));
   }
@@ -229,9 +263,11 @@
     return [km,d].filter(Boolean).join(' / ');
   }
   function generateInsight(){
+    const top = priorityItems(1)[0];
     const worstSvc = state.serviceComponents.map(c=>({c,h:serviceHealth(c)})).sort((a,b)=>a.h.pct-b.h.pct)[0];
     const badPart = state.bikeChecks.find(p=>['broken','worn','check'].includes(p.status));
     const fuel = fuelHealth();
+    if(top && top.score > 90) return `Bos, prioritas nomor satu sekarang <b>${esc(top.name)}</b>. Statusnya ${top.pct}% healthy, jangan ditunda kalau dipakai harian.`;
     if(worstSvc && worstSvc.h.pct <= 20) return `Bos, <b>${esc(worstSvc.c.name)}</b> sudah urgent. Prioritasin dulu, estimasi budget sekitar <b>${fmt.rp(worstSvc.c.estimate)}</b>.`;
     if(badPart) return `Bos, <b>${esc(badPart.name)}</b> statusnya <b>${partStatusLabel(badPart.status)}</b>. Masukin prioritas cek di Garage biar health naik.`;
     if(worstSvc && worstSvc.h.pct <= 55) return `Bos, <b>${esc(worstSvc.c.name)}</b> mulai dekat jadwal. Sisa ${componentSub(worstSvc.h)}.`;
@@ -248,6 +284,11 @@
     if(active==='expense') renderExpenses();
   }
   function renderServiceList(){
+    const pkgStrip = el('service-package-strip');
+    if(pkgStrip){
+      pkgStrip.innerHTML = SERVICE_PACKAGES.map(pkg => `<button class="package-chip" data-action="service-package" data-package="${pkg.id}"><span data-icon="${pkg.icon}"></span><b>${esc(pkg.name)}</b><small>${esc(pkg.desc)}</small></button>`).join('');
+      renderIconsLater(pkgStrip);
+    }
     el('service-list').innerHTML = state.serviceComponents.map(c=>{
       const h = serviceHealth(c);
       return `<div class="service-card">
@@ -291,6 +332,9 @@
     const month = state.expenses.filter(e=>monthFilter(e.ts));
     const sum = cat => month.filter(e=>cat==='all'||e.category===cat).reduce((a,b)=>a+safeNum(b.amount),0);
     el('exp-month').textContent = fmt.rp(sum('all')); el('exp-fuel').textContent = fmt.rp(sum('Fuel')); el('exp-service').textContent = fmt.rp(sum('Service')); el('exp-modif').textContent = fmt.rp(sum('Modif'));
+    const monthKm = state.rides.filter(r=>monthFilter(r.ts)).reduce((a,b)=>a+safeNum(b.distance),0);
+    const costPerKm = monthKm > 0 ? Math.round(sum('all') / monthKm) : 0;
+    const cpk = el('exp-cost-km'); if(cpk) cpk.textContent = costPerKm ? `${fmt.rp(costPerKm)}/km` : 'Belum ada ride';
     renderTimeline(el('expense-list'), getTimeline(40));
   }
   function renderTimeline(target, items){
@@ -387,6 +431,39 @@
     c.lastKm = km; c.lastDate = date; c.brand = brand; c.note = note; c.history.unshift(entry);
     if(cost>0) state.expenses.unshift({id:uid(), category:'Service', title:c.name, amount:cost, ts:Date.now(), note:[brand,note].filter(Boolean).join(' · ')});
     save(); closeSheet(); toast('Service tersimpan'); renderAll();
+  }
+
+  function openServicePackageSheet(packageId='light'){
+    const pkgOptions = SERVICE_PACKAGES.map(pkg => {
+      const est = pkg.items.map(id => state.serviceComponents.find(c=>c.id===id)?.estimate || 0).reduce((a,b)=>a+b,0);
+      return {value:pkg.id, label:pkg.name, sub:pkg.desc, meta:fmt.rp(est), icon:pkg.icon, tone:'ok'};
+    });
+    const current = SERVICE_PACKAGES.find(p=>p.id===packageId) || SERVICE_PACKAGES[0];
+    const currentEst = current.items.map(id => state.serviceComponents.find(c=>c.id===id)?.estimate || 0).reduce((a,b)=>a+b,0);
+    openSheet(`${sheetTitle('Service Package', 'Sekali simpan, beberapa komponen langsung refresh healthy 100%.')}
+      <div class="mini-caption">Pilih paket</div>
+      ${smartPicker('pkg-picker', pkgOptions, current.id, 'picker-list compact')}
+      <div class="form-grid"><label class="field"><span>KM Service</span><input id="pkg-km" type="number" value="${state.profile.virtualKm}" /></label><label class="field"><span>Tanggal</span><input id="pkg-date" type="date" value="${todayISO()}" /></label></div>
+      <label class="field"><span>Total Biaya</span><input id="pkg-cost" type="number" value="${currentEst}" /></label>
+      <label class="field"><span>Catatan</span><textarea id="pkg-note" placeholder="Servis ringan / CVT / safety check..."></textarea></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-service-package">Simpan Paket</button></div>`);
+    el('pkg-picker').addEventListener('pickerchange', () => {
+      const pkg = SERVICE_PACKAGES.find(p=>p.id===getPickerValue('pkg-picker')) || SERVICE_PACKAGES[0];
+      const est = pkg.items.map(id => state.serviceComponents.find(c=>c.id===id)?.estimate || 0).reduce((a,b)=>a+b,0);
+      el('pkg-cost').value = est;
+    });
+  }
+  function saveServicePackage(){
+    const pkg = SERVICE_PACKAGES.find(p=>p.id===getPickerValue('pkg-picker')) || SERVICE_PACKAGES[0];
+    const km = safeNum(el('pkg-km').value); const date = el('pkg-date').value || todayISO(); const cost = safeNum(el('pkg-cost').value); const note = el('pkg-note').value.trim();
+    const touched = [];
+    pkg.items.forEach(id => {
+      const c = state.serviceComponents.find(x=>x.id===id); if(!c) return;
+      const entry = {id:uid(), km, date, cost:0, brand:pkg.name, note, packageId:pkg.id, ts:Date.now()};
+      c.lastKm = km; c.lastDate = date; c.brand = pkg.name; c.note = note || pkg.desc; c.history.unshift(entry); touched.push(c.name);
+    });
+    if(cost>0) state.expenses.unshift({id:uid(), category:'Service', title:pkg.name, amount:cost, ts:Date.now(), note:touched.join(', ')});
+    save(); closeSheet(); toast(`${pkg.name} tersimpan`); renderAll();
   }
 
   function openCheckSheet(id){
@@ -618,6 +695,7 @@
     const garageTab = e.target.closest('#garage-tabs [data-garage-tab]'); if(garageTab) return switchGarage(garageTab.dataset.garageTab);
     const go = e.target.closest('[data-go]'); if(go){ switchTab(go.dataset.go); if(go.dataset.garageTab) setTimeout(()=>switchGarage(go.dataset.garageTab), 0); return; }
     const svcBtn = e.target.closest('[data-action="service-id"]'); if(svcBtn) return openServiceSheet(svcBtn.dataset.id);
+    const pkgBtn = e.target.closest('[data-action="service-package"]'); if(pkgBtn) return openServicePackageSheet(pkgBtn.dataset.package || 'light');
     const checkBtn = e.target.closest('[data-action="check-id"]'); if(checkBtn) return openCheckSheet(checkBtn.dataset.id);
     const a = e.target.closest('[data-action]')?.dataset.action;
     if(!a) return;
@@ -626,6 +704,7 @@
       'close-sheet': closeSheet,
       'open-km': openKmSheet,
       'quick-service': () => openServiceSheet(),
+      'save-service-package': saveServicePackage,
       'bike-check': () => openCheckSheet(),
       'quick-fuel': () => openFuelSheet('pertalite', 1, false),
       'fuel-custom': () => openFuelSheet('pertalite', 1, true),

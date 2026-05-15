@@ -68,7 +68,15 @@
             <button class="quick-card" data-action="quick-service"><span data-icon="wrench"></span><b>Service</b><small>Quick log</small></button>
           </div>
 
-          <section class="panel reveal delay-2">
+          <section class="panel reveal delay-2 priority-panel">
+            <div class="panel-head slim">
+              <div><h2>Priority Queue</h2><p>Urutan paling penting dikerjain dulu.</p></div>
+              <button class="mini-link" data-go="garage">Garage</button>
+            </div>
+            <div class="priority-list" id="priority-list"></div>
+          </section>
+
+          <section class="panel reveal delay-3">
             <div class="panel-head">
               <div>
                 <h2>Component Healthy</h2>
@@ -115,8 +123,9 @@
             <div class="panel reveal delay-2">
               <div class="panel-head">
                 <div><h2>Maintenance Engine</h2><p>Hitung sehat dari KM + hari otomatis.</p></div>
-                <button class="pill-btn" data-action="quick-service">+ Service</button>
+                <div class="head-actions"><button class="ghost-btn" data-action="service-package">Paket</button><button class="pill-btn" data-action="quick-service">+ Service</button></div>
               </div>
+              <div class="package-strip" id="service-package-strip"></div>
               <div class="service-list" id="service-list"></div>
             </div>
           </div>
@@ -169,6 +178,7 @@
               <div class="expense-card"><small>Fuel</small><b id="exp-fuel">Rp 0</b></div>
               <div class="expense-card"><small>Service</small><b id="exp-service">Rp 0</b></div>
               <div class="expense-card"><small>Modif</small><b id="exp-modif">Rp 0</b></div>
+              <div class="expense-card wide"><small>Biaya / KM</small><b id="exp-cost-km">Rp 0/km</b></div>
             </div>
             <div class="panel">
               <div class="panel-head">
