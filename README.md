@@ -1,5 +1,3 @@
-# NGR Health Garage v3.4
+# NGR Garage v3.5
 
-Ride Map + Ride Pulse + Location Memory.
-
-Build APK lewat GitHub Actions: Actions -> Build NGR APK -> Run workflow.
+Leaflet Ride Map + anti-drift GPS filter buat kasir/diam, Ride Pulse, Health, Garage, Fuel, AI.

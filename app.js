@@ -786,6 +786,7 @@
       <p class="tracker-map-note">Map butuh internet buat tile. Kalau offline, tracking tetap jalan dan rute bisa dilihat nanti.</p>
       <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer</div></div>
       <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
+      <p class="tracker-map-note" id="trk-gps-note">GPS siap. Jarak baru dihitung kalau perpindahan lolos filter anti-ngaco.</p>
       <div class="pulse-grid" id="trk-pulse" style="display:none"></div>
       <input id="ride-photo" type="file" accept="image/*" capture="environment" hidden />
       <div class="form-actions" id="trk-actions"><button class="save-btn" data-action="tracker-start">GO</button><button class="cancel-btn" data-action="close-sheet">Tutup</button></div>`);
@@ -796,7 +797,7 @@
   function routeDistance(points){ let m=0; for(let i=1;i<points.length;i++) m += haversine(points[i-1], points[i]); return m/1000; }
   function classifyPoint(prev,p,d,dt,speedKmh){
     if(!prev) return 'normal';
-    if(p.acc > 50) return 'warn';
+    if(p.acc > 55) return 'warn';
     if(d > 220 || speedKmh > 125) return 'bad';
     const accel = (speedKmh - safeNum(prev.speedKmh)) / Math.max(1, dt);
     if(speedKmh < 4) return 'stop';
@@ -804,32 +805,91 @@
     if(accel > .95) return 'push';
     return 'normal';
   }
+  function gpsNoiseMeters(a,b){
+    const accA = Math.min(60, Math.max(0, safeNum(a?.acc || 0)));
+    const accB = Math.min(60, Math.max(0, safeNum(b?.acc || 0)));
+    return clamp(Math.max(8, (accA + accB) * .45), 8, 32);
+  }
+  function isStationaryDrift(prev,p,d,dt,speedKmh){
+    if(!prev) return false;
+    const noise = gpsNoiseMeters(prev,p);
+    const sensorSpeed = p.rawSpeedKmh;
+    const slowSensor = !Number.isFinite(sensorSpeed) || sensorSpeed < 6;
+    const shortHop = d <= noise;
+    const slowDerived = speedKmh < 7;
+    return shortHop && (slowSensor || slowDerived) && dt < 90;
+  }
+  function addStationaryPoint(p){
+    tracker.currentSpeed = 0;
+    tracker.stopMs += Math.max(0, p.ts - (tracker.last?.ts || p.ts));
+    tracker.stillCount++;
+    if(tracker.route.length && (p.ts - (tracker.route.at(-1).ts || 0) > 18000)){
+      const last = tracker.route.at(-1);
+      tracker.route.push({...last, ts:p.ts, speedKmh:0, rawSpeedKmh:0, seg:'stop', acc:p.acc});
+      scheduleLiveMap();
+    }
+  }
   function startTracker(){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, last:null, distance:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, route:[], checkpoints:[], tick:null};
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, last:null, distance:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, stillCount:0, stopMs:0, gpsNote:'Menunggu GPS...', route:[], checkpoints:[], tick:null};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
-      const c = pos.coords; const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:c.speed!=null&&c.speed>=0 ? c.speed*3.6 : 0, seg:'normal'};
-      if(p.acc > 80){ tracker.bad++; updateTrackerUI(); return; }
+      const c = pos.coords;
+      const rawSpeedKmh = c.speed!=null&&c.speed>=0 ? c.speed*3.6 : NaN;
+      const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:Number.isFinite(rawSpeedKmh) ? rawSpeedKmh : 0, rawSpeedKmh, seg:'normal'};
+      if(p.acc > 80){ tracker.bad++; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), titik diabaikan`; updateTrackerUI(); return; }
       if(tracker.last){
-        const d = haversine(tracker.last, p); const dt = Math.max(.001, (p.ts - tracker.last.ts)/1000); const speedKmh = p.speedKmh || (d/dt)*3.6;
-        p.speedKmh = speedKmh; p.seg = classifyPoint(tracker.last, p, d, dt, speedKmh);
-        if(p.seg !== 'bad' && d < 250 && speedKmh < 130){ if(d > 2) tracker.distance += d; tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh); tracker.currentSpeed = speedKmh; tracker.points++; tracker.route.push(p); }
-        else tracker.bad++;
-      } else { tracker.route.push(p); tracker.points++; }
-      tracker.last = p;
-      if(c.speed != null && c.speed >= 0) tracker.maxSpeed = Math.max(tracker.maxSpeed, c.speed*3.6);
-      updateTrackerUI(); scheduleLiveMap();
-    }, err=>toast('GPS: ' + err.message, 'err'), {enableHighAccuracy:true, maximumAge:1000, timeout:10000});
+        const d = haversine(tracker.last, p);
+        const dt = Math.max(.001, (p.ts - tracker.last.ts)/1000);
+        const derivedSpeed = (d/dt)*3.6;
+        let speedKmh = Number.isFinite(rawSpeedKmh) && rawSpeedKmh > 1 ? rawSpeedKmh : derivedSpeed;
+        if(isStationaryDrift(tracker.last, p, d, dt, speedKmh)){
+          p.seg = 'stop'; p.speedKmh = 0;
+          tracker.ignored++; tracker.points++;
+          tracker.gpsNote = `Diam / kasir mode: drift ${Math.round(d)}m diabaikan`;
+          addStationaryPoint(p);
+          tracker.last = {...tracker.last, ts:p.ts, acc:Math.min(tracker.last.acc || 999, p.acc)};
+          updateTrackerUI();
+          return;
+        }
+        p.speedKmh = speedKmh;
+        p.seg = classifyPoint(tracker.last, p, d, dt, speedKmh);
+        const minMove = Math.max(5, Math.min(18, gpsNoiseMeters(tracker.last,p) * .55));
+        const validMove = p.seg !== 'bad' && d >= minMove && d < 250 && speedKmh < 130;
+        if(validMove){
+          tracker.distance += d;
+          tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh);
+          tracker.currentSpeed = speedKmh;
+          tracker.points++;
+          tracker.stillCount = 0;
+          tracker.gpsNote = `GPS OK ±${Math.round(p.acc)}m · +${Math.round(d)}m`;
+          tracker.route.push(p);
+          tracker.last = p;
+          scheduleLiveMap();
+        } else {
+          tracker.bad++;
+          tracker.gpsNote = p.seg === 'bad' ? 'GPS loncat, titik dibuang' : `Gerak ${Math.round(d)}m belum cukup valid`;
+          tracker.last = {...tracker.last, ts:p.ts, acc:Math.min(tracker.last.acc || 999, p.acc)};
+        }
+      } else {
+        tracker.route.push({...p, speedKmh:0, seg:'normal'});
+        tracker.points++;
+        tracker.last = p;
+        tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m`;
+        scheduleLiveMap();
+      }
+      updateTrackerUI();
+    }, err=>toast('GPS: ' + err.message, 'err'), {enableHighAccuracy:true, maximumAge:500, timeout:12000});
     tracker.tick = setInterval(()=>{ updateTrackerUI(); scheduleLiveMap(); }, 1000);
     $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`;
     toast('Ride Map dimulai');
   }
   function trackerDuration(){ if(!tracker) return 0; return Date.now() - tracker.start - tracker.pausedMs - (tracker.paused ? Date.now()-tracker.pauseStart : 0); }
   function updateTrackerUI(){
-    if(!tracker || !el('trk-dist')) return; const dur=trackerDuration(); const km=tracker.distance/1000; const avg=dur ? km/(dur/3600000) : 0;
+    if(!tracker || !el('trk-dist')) return; const dur=trackerDuration(); const km=tracker.distance/1000; const avg=dur && tracker.distance > 12 ? km/(dur/3600000) : 0;
     el('trk-dist').textContent = km.toFixed(2); el('trk-time').textContent = fmt.min(dur); el('trk-speed').textContent = Math.round(avg); el('trk-max').textContent = Math.round(tracker.maxSpeed);
-    const pulse = computeRidePulse(tracker.route, km, dur, tracker.maxSpeed);
+    if(el('trk-gps-note')) el('trk-gps-note').textContent = tracker.gpsNote || 'GPS aktif';
+    const pulse = computeRidePulse(tracker.route, km, dur, tracker.maxSpeed, tracker.stopMs);
     const pg = el('trk-pulse'); if(pg && tracker.route.length > 4){ pg.style.display='grid'; pg.innerHTML = pulseMiniHtml(pulse); }
   }
   function scheduleLiveMap(){ if(liveMapTimer) return; liveMapTimer = setTimeout(()=>{ liveMapTimer=0; if(tracker) renderRouteMap('ride-live-map', tracker.route, {live:true, checkpoints:tracker.checkpoints}); }, 1500); }
@@ -853,14 +913,14 @@
     if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
     else if(avg < 8 && max < 15){ detect='Looks Like Walking'; msg='Bos, ini kelihatan kayak jalan kaki/jogging. Jangan masukin ke KM motor dulu?'; }
     else if((avg >= 12 || max >= 20) && km >= .5){ detect='Motor Ride'; msg='Trip terlihat seperti ride motor. Aman buat masuk Virtual KM.'; }
-    const route = simplifyRoute(tracker.route, 650); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max);
+    const route = simplifyRoute(tracker.route, 650); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max, tracker.stopMs);
     const summary = {distance:km, durationMs:dur, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ts:Date.now(), name:'Ride '+fmt.date(Date.now())}; tracker = null;
     openSheet(`${sheetTitle('Review Ride Map', 'Rute biru + Ride Pulse. KM belum masuk sebelum disimpan.')}
       <div class="route-map" id="ride-review-map"></div>
       <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer</div></div>
       <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg km/j</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
-      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Ride Pulse:</b> estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
+      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Ride Pulse:</b> estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Drift GPS saat diam sudah difilter. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
       ${checkpointStripHtml(checkpoints)}
       <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">Log saja</button><button class="save-btn" data-action="save-ride-km">Simpan KM</button></div>`);
     sheet._rideSummary = summary; setTimeout(()=>renderRouteMap('ride-review-map', route, {checkpoints}), 80);
@@ -873,7 +933,7 @@
     save(); closeSheet(); toast(toKm ? 'Ride Map masuk Virtual KM' : 'Ride Map disimpan sebagai log'); renderAll();
   }
 
-  function computeRidePulse(points=[], distanceKm=0, durationMs=0, maxSpeed=0){
+  function computeRidePulse(points=[], distanceKm=0, durationMs=0, maxSpeed=0, extraStopMs=0){
     const pts = points || []; let hard=0, push=0, stopMs=0, stressSegments=0, validSeg=0;
     for(let i=1;i<pts.length;i++){
       const a=pts[i-1], b=pts[i], dt=Math.max(1,(b.ts-a.ts)/1000), dv=safeNum(b.speedKmh)-safeNum(a.speedKmh), acc=dv/dt;
@@ -882,6 +942,7 @@
       else if(acc > .8 || b.seg==='push'){ push++; stressSegments += .45; }
       if(b.seg && b.seg!=='bad') validSeg++;
     }
+    stopMs += safeNum(extraStopMs);
     const durMin = Math.max(1, durationMs/60000); const hardRate = hard/durMin; const stopPct = durationMs ? stopMs/durationMs : 0;
     const fuelStress = clamp(Math.round(hardRate*22 + push*2 + stopPct*35 + Math.max(0, maxSpeed-65)*.7),0,100);
     const smoothScore = clamp(Math.round(100 - fuelStress*.72 - hard*2.2 - stopPct*12),0,100);
