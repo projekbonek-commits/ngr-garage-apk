@@ -959,6 +959,14 @@
     if(acc <= 85) return {label:'LEMAH', tone:'danger', pct:28, note:'GPS lemah. Geser HP ke dashboard atas/dekat kaca.'};
     return {label:'NO FIX', tone:'danger', pct:10, note:'Belum dapat lokasi. Jangan jalan dulu.'};
   }
+  function gpsTrackingInfo(acc, bad=0, points=0){
+    acc = safeNum(acc) || 999;
+    const badRatio = bad / Math.max(1, bad + points);
+    if(acc <= 20 && badRatio < .25) return {label:'GPS Stabil', tone:'ready', detail:`±${Math.round(acc)}m`};
+    if(acc <= 35 && badRatio < .35) return {label:'GPS Cukup Stabil', tone:'', detail:`±${Math.round(acc)}m`};
+    if(acc <= 60) return {label:'GPS Kurang Stabil', tone:'warn', detail:`±${Math.round(acc)}m`};
+    return {label:'GPS Lemah', tone:'danger', detail:`±${Math.round(acc)}m`};
+  }
   function stopGpsWarmup(showToast=true){
     if(warmup?.watchId != null){ try{ navigator.geolocation.clearWatch(warmup.watchId); }catch{} }
     if(warmup?.autoTimer){ clearTimeout(warmup.autoTimer); }
@@ -1040,8 +1048,9 @@
     openSheet(`${sheetTitle('NGR Ride Tracking', isWalk ? 'Mode test jalan kaki aktif.' : (forceStart ? 'Low Signal Mode aktif. Sensitivitas dashboard.' : 'GPS TRACKING SIAP — jalan sekarang.'))}
       <div class="tracker-card">
         <div class="tracker-status-row"><span class="gps-badge" id="trk-mode">${isWalk ? 'Walk Test' : (forceStart ? 'Low Signal' : 'Ride Siap')}</span><span class="muted">${modeLabel}</span></div>
-        <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer</div></div>
-        <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
+        <div class="speedo-panel"><div><small>Speed sekarang</small><b><span id="trk-current-speed">0</span><em> km/j</em></b></div><span class="gps-badge" id="trk-gps-quality">GPS —</span></div>
+        <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer valid</div></div>
+        <div class="tracker-meta four"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div><div><b id="trk-accuracy">—</b><small>akurasi</small></div></div>
         <p class="tracker-map-note" id="trk-gps-note">${isWalk ? 'Mode Test Jalan Kaki: gerak pelan kebaca, tapi tidak masuk Virtual KM motor.' : (forceStart ? 'Low signal mode: tunggu gerakan valid, drift tetap diabaikan.' : 'Mode Ride Motor: jalan pelan/macet tetap dihitung setelah GPS valid terkonfirmasi.')}</p>
       </div>
       <div class="gps-rules">
@@ -1225,6 +1234,13 @@
     el('trk-time').textContent = fmt.min(dur);
     el('trk-speed').textContent = Math.round(avg);
     el('trk-max').textContent = Math.round(tracker.maxSpeed);
+    const rawSpeed = safeNum(tracker.currentSpeed || 0);
+    if(el('trk-current-speed')) el('trk-current-speed').textContent = Math.round(rawSpeed);
+    const acc = tracker.lastRaw ? Math.round(safeNum(tracker.lastRaw.acc || 999)) : null;
+    const q = gpsTrackingInfo(acc || 999, tracker.bad, tracker.points);
+    if(el('trk-accuracy')) el('trk-accuracy').textContent = acc ? `±${acc}m` : '—';
+    const qEl = el('trk-gps-quality');
+    if(qEl){ qEl.textContent = acc ? `${q.label} · ${q.detail}` : 'GPS mencari'; qEl.className = 'gps-badge ' + (q.tone || ''); }
     if(el('trk-gps-note')) el('trk-gps-note').textContent = tracker.gpsNote || 'GPS aktif';
     const badge = el('trk-mode');
     if(badge){
@@ -1323,10 +1339,11 @@
     const hasRoute = pts.length >= 2;
     return `<div class="ride-map-card">
       <div class="ride-map-head"><b>Ride Summary Map</b><small>${pts.length} titik valid · ${checkpoints.length} foto checkpoint</small></div>
+      <div class="map-status-row"><span class="map-status" id="${id}-status">Cek koneksi map</span><span>peta detail butuh internet</span></div>
       <div id="${id}" class="ride-summary-map ${hasRoute ? '' : 'empty'}">
         ${hasRoute ? '<div class="map-loading">Loading map hasil ride...</div>' : '<div class="map-empty"><b>Belum ada rute valid</b><small>GPS belum cukup stabil buat gambar route.</small></div>'}
       </div>
-      <small class="ride-map-note">Map muncul setelah ride selesai supaya tracking tetap ringan. Kalau offline, rute tetap tersimpan dan map bisa muncul saat online.</small>
+      <small class="ride-map-note"><b>Map online butuh internet.</b> Kalau offline, NGR tetap nampilin preview rute dari titik GPS valid, jadi histori ride tidak hilang.</small>
     </div>`;
   }
 
@@ -1381,10 +1398,13 @@
     const box = el(id);
     if(!box) return;
     const pts = (route || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
-    if(pts.length < 2){ box.innerHTML = '<div class="map-empty"><b>Belum ada rute valid</b><small>Tracking tidak cukup buat map.</small></div>'; return; }
+    const statusEl = el(id + '-status');
+    if(pts.length < 2){ if(statusEl){ statusEl.textContent='Rute belum cukup'; statusEl.className='map-status warn'; } box.innerHTML = '<div class="map-empty"><b>Belum ada rute valid</b><small>Tracking tidak cukup buat map.</small></div>'; return; }
     try{
+      if(statusEl){ statusEl.textContent = 'Memuat map online'; statusEl.className = 'map-status'; }
       const L = await ensureLeaflet();
       if(!el(id)) return;
+      if(statusEl){ statusEl.textContent = 'Map online'; statusEl.className = 'map-status ok'; }
       box.innerHTML = '';
       const map = L.map(id, {zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, tap:true});
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19, subdomains:'abcd'}).addTo(map);
@@ -1399,7 +1419,9 @@
       map.fitBounds(line.getBounds(), {padding:[18,18]});
       setTimeout(()=>map.invalidateSize(), 160);
     }catch(err){
-      box.innerHTML = fallbackRouteSvg(pts) + `<div class="map-fallback-note">Map tile butuh internet. Ini preview rute offline dari titik GPS valid.</div>`;
+      const statusEl = el(id + '-status');
+      if(statusEl){ statusEl.textContent = 'Offline preview'; statusEl.className = 'map-status warn'; }
+      box.innerHTML = fallbackRouteSvg(pts) + `<div class="map-fallback-note">Map detail butuh internet. Ini preview rute offline dari titik GPS valid.</div>`;
     }
   }
 

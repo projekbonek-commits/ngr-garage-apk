@@ -129,3 +129,50 @@ button{border:0;background:none;cursor:pointer}svg{width:22px;height:22px;fill:n
 
 
 .warmup-card{padding:16px;border-radius:24px;background:linear-gradient(180deg,rgba(53,208,127,.12),rgba(255,255,255,.035));border:1px solid var(--line);box-shadow:var(--shadow);overflow:hidden;position:relative;text-align:center}.warmup-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}.warmup-accuracy{font-size:48px;letter-spacing:-.07em;font-weight:900;margin-top:10px}.warmup-bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:14px 0 4px}.warmup-bar i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#ff5b6e,#ffd166,var(--green));transition:width .25s var(--ease)}.save-btn:disabled{opacity:.45;filter:saturate(.55);pointer-events:none}.gps-badge.ready{background:rgba(53,208,127,.12);border-color:rgba(53,208,127,.24);color:#d8ffe8}
+
+/* ===== NGR v4.5 GPS Status + Speedo ===== */
+.speedo-panel{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:14px 16px;
+  margin:8px 0 2px;
+  border-radius:22px;
+  background:linear-gradient(135deg,rgba(35,210,255,.13),rgba(45,140,255,.08));
+  border:1px solid rgba(35,210,255,.18);
+}
+.speedo-panel small{display:block;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;margin-bottom:4px}
+.speedo-panel b{display:flex;align-items:baseline;gap:4px;font-size:36px;line-height:1;letter-spacing:-.07em;color:var(--text)}
+.speedo-panel em{font-style:normal;font-size:13px;color:var(--muted);letter-spacing:0;font-weight:800}
+.tracker-meta.four{grid-template-columns:repeat(4,minmax(0,1fr))}
+.tracker-meta.four div{padding:10px 8px}
+.tracker-meta.four b{font-size:13px}
+.map-status-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  margin:-2px 0 10px;
+  color:var(--muted);
+  font-size:10px;
+}
+.map-status{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 9px;
+  border-radius:999px;
+  background:rgba(45,140,255,.12);
+  border:1px solid rgba(45,140,255,.22);
+  color:#bfe6ff;
+  font-weight:900;
+  letter-spacing:.02em;
+}
+.map-status:before{content:"";width:7px;height:7px;border-radius:999px;background:currentColor;box-shadow:0 0 12px currentColor}
+.map-status.ok{background:rgba(53,208,127,.12);border-color:rgba(53,208,127,.24);color:#d8ffe8}
+.map-status.warn{background:rgba(255,209,102,.12);border-color:rgba(255,209,102,.24);color:#ffe1a0}
+@media(max-width:380px){
+  .tracker-meta.four{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .speedo-panel{display:block}.speedo-panel .gps-badge{margin-top:10px}
+}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v4-4-dual-ride-mode';
+const CACHE_NAME = 'ngr-v4-5-gps-speedo-map-status';
 const CORE_ASSETS = [
   './',
   './index.html',
