@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4.1;
+  const VERSION = 4.6;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -946,16 +946,16 @@
       </div>
       <div class="gps-rules">
         <b>GPS harus siap dulu</b>
-        <small>Setelah tap cek GPS, tunggu status <b>GPS TRACKING SIAP</b>. Baru jalan/gas.</small>
+        <small>Setelah tap Cek GPS, NGR kalibrasi dulu. Jangan jalan sampai status <b>GPS TRACKING SIAP</b>, lalu tekan Mulai Ride.</small>
       </div>
       <div class="form-actions" id="trk-actions"><button class="save-btn" data-action="tracker-start">Cek GPS</button><button class="cancel-btn" data-action="close-sheet">Tutup</button></div>`);
   }
 
   function gpsSignalInfo(acc){
     acc = safeNum(acc) || 999;
-    if(acc <= 25) return {label:'GPS TRACKING SIAP', tone:'ok', pct:100, note:'GPS mantap. Tunggu sheet tracking kebuka, lalu jalan sekarang.'};
-    if(acc <= 35) return {label:'CUKUP SIAP', tone:'ok', pct:82, note:'GPS cukup siap. NGR akan masuk tracking otomatis sebentar lagi.'};
-    if(acc <= 55) return {label:'BELUM SIAP', tone:'warn', pct:55, note:'Jangan jalan dulu. Tunggu akurasi turun di bawah ±35m.'};
+    if(acc <= 25) return {label:'GPS BAGUS', tone:'ok', pct:92, note:'GPS bagus. NGR masih kalibrasi beberapa detik supaya speed spike awal tidak masuk.'};
+    if(acc <= 35) return {label:'CUKUP BAGUS', tone:'ok', pct:78, note:'GPS cukup bagus. Tahan dulu, NGR kumpulkan beberapa fix stabil.'};
+    if(acc <= 55) return {label:'BELUM SIAP', tone:'warn', pct:55, note:'Jangan jalan dulu. Tunggu akurasi turun di bawah ±35m dan fix stabil.'};
     if(acc <= 85) return {label:'LEMAH', tone:'danger', pct:28, note:'GPS lemah. Geser HP ke dashboard atas/dekat kaca.'};
     return {label:'NO FIX', tone:'danger', pct:10, note:'Belum dapat lokasi. Jangan jalan dulu.'};
   }
@@ -986,18 +986,18 @@
     el('warm-fix').textContent = warmup.fixes + ' fix';
     el('warm-best').textContent = warmup.bestAcc < 999 ? `±${Math.round(warmup.bestAcc)}m` : '—';
     el('warm-bar-fill').style.width = clamp(info.pct, 8, 100) + '%';
-    el('warm-note').textContent = warmup.error || (ready ? 'GPS TRACKING SIAP — tunggu sebentar, tracking akan kebuka otomatis. Kalau sheet tracking sudah muncul, baru jalan.' : info.note);
+    el('warm-note').textContent = warmup.error || (ready ? 'GPS TRACKING SIAP — tekan Mulai Ride, lalu baru jalan. Kalibrasi awal sudah cukup stabil.' : info.note);
     const btn = el('warm-start-btn');
     if(btn){
       btn.disabled = !ready;
-      btn.textContent = ready ? 'GPS Tracking Siap' : 'Tunggu GPS Siap';
+      btn.textContent = ready ? 'Mulai Ride' : 'Tunggu Kalibrasi';
     }
   }
   function startGpsWarmup(mode='ride'){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
     mode = mode === 'walk' ? 'walk' : 'ride';
     if(warmup) stopGpsWarmup(false);
-    warmup = {watchId:null, start:Date.now(), fixes:0, bestAcc:999, last:null, ready:false, error:'', autoTimer:null, mode};
+    warmup = {watchId:null, start:Date.now(), fixes:0, bestAcc:999, last:null, ready:false, error:'', autoTimer:null, mode, samples:[], stableCount:0};
     openSheet(`${sheetTitle('GPS Tracking Check', warmup.mode === 'walk' ? 'Mode test jalan kaki. Data tidak masuk KM motor.' : 'Mode Ride Motor. Macet/pelan tetap bisa dihitung kalau GPS valid.')}
       <div class="warmup-card">
         <div class="warmup-top"><span class="gps-badge warn" id="warm-status">CEK GPS</span><span class="muted">${warmup.mode === 'walk' ? 'test jalan kaki' : 'ride motor'}</span></div>
@@ -1005,13 +1005,13 @@
         <div class="muted">akurasi lokasi</div>
         <div class="warmup-bar"><i id="warm-bar-fill" style="width:8%"></i></div>
         <div class="tracker-meta"><div><b id="warm-time">0s</b><small>Warm-up</small></div><div><b id="warm-fix">0 fix</b><small>Sinyal</small></div><div><b id="warm-best">—</b><small>Terbaik</small></div></div>
-        <p class="tracker-map-note" id="warm-note">Mencari GPS stabil... tunggu sampai muncul GPS TRACKING SIAP.</p>
+        <p class="tracker-map-note" id="warm-note">Kalibrasi GPS dulu... jangan jalan sampai status GPS TRACKING SIAP.</p>
       </div>
       <div class="gps-rules">
         <b>Tips dashboard</b>
-        <small>${warmup.mode === 'walk' ? 'Buat test, jalan pelan boleh. Hasilnya disimpan log saja.' : 'Letakkan HP di dashboard atas/dekat kaca. Kalau macet/merayap, mode Ride tetap menghitung gerak valid.'}</small>
+        <small>${warmup.mode === 'walk' ? 'Buat test, jalan pelan boleh. Hasilnya disimpan log saja.' : 'Letakkan HP di dashboard atas/dekat kaca. Tunggu status GPS TRACKING SIAP, tekan Mulai Ride, baru jalan/gas.'}</small>
       </div>
-      <div class="form-actions"><button class="cancel-btn" data-action="warmup-cancel">Batal</button><button class="cancel-btn" data-action="warmup-force">Low Signal</button><button class="save-btn" id="warm-start-btn" data-action="warmup-start" disabled>Tunggu GPS Siap</button></div>`);
+      <div class="form-actions"><button class="cancel-btn" data-action="warmup-cancel">Batal</button><button class="cancel-btn" data-action="warmup-force">Low Signal</button><button class="save-btn" id="warm-start-btn" data-action="warmup-start" disabled>Tunggu Kalibrasi</button></div>`);
     warmup.watchId = navigator.geolocation.watchPosition(pos => {
       if(!warmup) return;
       const c = pos.coords;
@@ -1019,14 +1019,17 @@
       warmup.last = p;
       warmup.fixes++;
       warmup.bestAcc = Math.min(warmup.bestAcc, p.acc);
-      warmup.ready = (p.acc <= 25) || (p.acc <= 35 && warmup.fixes >= 2);
+      warmup.samples.push(p);
+      if(warmup.samples.length > 8) warmup.samples.shift();
+      const elapsed = Date.now() - warmup.start;
+      const recent = warmup.samples.slice(-4);
+      const recentGood = recent.length >= 3 && recent.every(x => x.acc <= 38);
+      const currentGood = p.acc <= 30;
+      const bestGood = warmup.bestAcc <= 25;
+      warmup.stableCount = recentGood ? warmup.stableCount + 1 : 0;
+      warmup.ready = elapsed >= 8000 && warmup.fixes >= 4 && (currentGood || bestGood) && warmup.stableCount >= 2;
       warmup.error = '';
       updateWarmupUI();
-      if(warmup.ready && !warmup.autoTimer){
-        warmup.autoTimer = setTimeout(() => {
-          if(warmup && warmup.ready) beginTrackerFromWarmup(false);
-        }, 1200);
-      }
     }, err => {
       if(!warmup) return;
       warmup.error = 'GPS: ' + err.message;
@@ -1051,7 +1054,7 @@
         <div class="speedo-panel"><div><small>Speed sekarang</small><b><span id="trk-current-speed">0</span><em> km/j</em></b></div><span class="gps-badge" id="trk-gps-quality">GPS —</span></div>
         <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer valid</div></div>
         <div class="tracker-meta four"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div><div><b id="trk-accuracy">—</b><small>akurasi</small></div></div>
-        <p class="tracker-map-note" id="trk-gps-note">${isWalk ? 'Mode Test Jalan Kaki: gerak pelan kebaca, tapi tidak masuk Virtual KM motor.' : (forceStart ? 'Low signal mode: tunggu gerakan valid, drift tetap diabaikan.' : 'Mode Ride Motor: jalan pelan/macet tetap dihitung setelah GPS valid terkonfirmasi.')}</p>
+        <p class="tracker-map-note" id="trk-gps-note">${isWalk ? 'Mode Test Jalan Kaki: gerak pelan kebaca, tapi tidak masuk Virtual KM motor.' : (forceStart ? 'Low signal mode: tunggu gerakan valid, drift tetap diabaikan.' : 'Mode Ride Motor: GPS sudah dikalibrasi. Jalan sekarang; speed spike awal tetap disaring.')}</p>
       </div>
       <div class="gps-rules">
         <b>${isWalk ? 'Walk Test aktif' : 'Ride Mode aktif'}</b>
@@ -1116,14 +1119,22 @@
     const prev = tracker.lastAccepted;
     const seg = classifyPoint(prev || ref, p, d, dt, speedKmh);
     if(seg === 'bad') { tracker.bad++; tracker.gpsNote = 'GPS loncat, titik dibuang'; return false; }
-    p.speedKmh = speedKmh;
-    p.seg = seg;
+    const elapsed = p.ts - tracker.start;
+    const earlyStats = elapsed < 15000 || tracker.points < 3 || tracker.distance < 35;
+    let statsSpeed = speedKmh;
+    if(earlyStats && speedKmh > (tracker.mode === 'walk' ? 12 : 35)){
+      tracker.spikeIgnored = (tracker.spikeIgnored || 0) + 1;
+      statsSpeed = 0;
+      p.seg = 'normal';
+    }
+    p.speedKmh = statsSpeed;
+    p.seg = p.seg || seg;
     if(prev){
       tracker.distance += d;
       tracker.movingMs += Math.min(dt * 1000, 12000);
     }
-    tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh);
-    tracker.currentSpeed = speedKmh;
+    tracker.maxSpeed = Math.max(tracker.maxSpeed, statsSpeed);
+    tracker.currentSpeed = statsSpeed;
     tracker.points++;
     tracker.lastAccepted = p;
     tracker.anchor = p;
@@ -1145,7 +1156,7 @@
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
     mode = mode === 'walk' ? 'walk' : 'ride';
     renderTrackingSheet(forceStart, mode);
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · macet/pelan tetap dihitung'), route:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode};
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
       const c = pos.coords;
@@ -1226,7 +1237,7 @@
     toast(forceStart ? 'Ride Lite dimulai: Low Signal' : 'GPS tracking siap. Jalan sekarang');
   }
   function trackerDuration(){ if(!tracker) return 0; return Date.now() - tracker.start - tracker.pausedMs - (tracker.paused ? Date.now()-tracker.pauseStart : 0); }
-  function trackerAvgSpeed(){ if(!tracker || tracker.movingMs <= 0 || tracker.distance < 20) return 0; return (tracker.distance/1000) / (tracker.movingMs/3600000); }
+  function trackerAvgSpeed(){ if(!tracker || tracker.movingMs <= 0) return 0; if(tracker.distance < 200 && tracker.movingMs < 30000) return 0; return (tracker.distance/1000) / (tracker.movingMs/3600000); }
   function updateTrackerUI(){
     if(!tracker || !el('trk-dist')) return;
     const dur=trackerDuration(), km=tracker.distance/1000, avg=trackerAvgSpeed();
@@ -1276,12 +1287,12 @@
     else if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
     else if(km >= .05){ detect='Motor Ride'; msg='Mode Ride aktif. Macet/pelan tetap dianggap perjalanan motor kalau GPS valid.'; }
     const route = simplifyRoute(tracker.route, 450); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max, tracker.stopMs);
-    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, mode, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : 'Ride ')+fmt.date(Date.now())}; tracker = null;
+    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, spikeIgnored:tracker.spikeIgnored||0, mode, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : 'Ride ')+fmt.date(Date.now())}; tracker = null;
     openSheet(`${sheetTitle('Review Ride Lite', 'KM belum masuk sebelum kamu simpan.')}
       <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer valid</div></div>
       <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg valid</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
-      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
+      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br>${mode === 'walk' ? `<b>GPS Test:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Mode ini cuma cek GPS, bukan analisis bensin motor.` : `<b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.`}</div>
       ${renderRideSummaryMapShell('ride-review-map', route, checkpoints)}
       ${checkpointStripHtml(checkpoints)}
       <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">${mode === 'walk' ? 'Simpan Test' : 'Log saja'}</button>${mode === 'walk' ? '' : '<button class="save-btn" data-action="save-ride-km">Simpan KM</button>'}</div>`);
