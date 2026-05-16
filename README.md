@@ -1,4 +1,5 @@
-# NGR Garage APK Build
+# NGR Health Garage v3.4
 
-Upload this repository to GitHub, then open Actions > Build NGR APK > Run workflow.
-After the build is green, download the artifact named ngr-debug-apk.
+Ride Map + Ride Pulse + Location Memory.
+
+Build APK lewat GitHub Actions: Actions -> Build NGR APK -> Run workflow.

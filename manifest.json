@@ -1,7 +1,7 @@
 {
-  "name": "NGR Health Garage",
-  "short_name": "NGR Health",
-  "description": "NGR Health Garage: dashboard motor, virtual odometer, service, bike check, fuel, modif, dan Kang Rusdi AI.",
+  "name": "NGR Health Garage Ride Map",
+  "short_name": "NGR Ride",
+  "description": "NGR Health Garage: health dashboard, garage, fuel, AI Kang Rusdi, Ride Map, route memory, dan Ride Pulse.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
@@ -9,7 +9,17 @@
   "background_color": "#080a0f",
   "theme_color": "#080a0f",
   "icons": [
-    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ]
 }

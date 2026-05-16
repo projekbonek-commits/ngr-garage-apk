@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3.3;
+  const VERSION = 3.4;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -124,6 +124,7 @@
         ...oldNotes.filter(n=>n.spend).map(n => ({id:uid(), category:'Other', title:n.text||'Catatan biaya', amount:safeNum(n.spend), ts:n.ts||Date.now(), note:'Migrasi catatan lama'}))
       ].sort((a,b)=>b.ts-a.ts),
       rides:[],
+      places:[],
       ai:{ key:'', model:DEFAULT_AI_MODEL, baseUrl:DEFAULT_AI_BASE_URL, chat:[] },
       links: oldMods.filter(m=>m.link).map(m => ({id:uid(), title:m.name||'Link part', url:m.link, category:'Modif', note:'Migrasi dari wishlist', ts:m.ts||Date.now()}))
     };
@@ -143,12 +144,14 @@
       ai: {...def.ai, ...(state.ai || {})},
       serviceComponents: (state.serviceComponents && state.serviceComponents.length) ? state.serviceComponents : def.serviceComponents,
       bikeChecks: (state.bikeChecks && state.bikeChecks.length) ? state.bikeChecks : def.bikeChecks,
-      fuels: state.fuels || [], mods: state.mods || [], styles: state.styles || [], expenses: state.expenses || [], rides: state.rides || [], links: state.links || []
+      fuels: state.fuels || [], mods: state.mods || [], styles: state.styles || [], expenses: state.expenses || [], rides: state.rides || [], places: state.places || [], links: state.links || []
     };
   }
   state.ai.model = normalizeModelId(state.ai.model);
   state.ai.baseUrl = state.ai.baseUrl || DEFAULT_AI_BASE_URL;
   if(!state.links) state.links = [];
+  if(!state.places) state.places = [];
+  state.rides = (state.rides || []).map(r => ({route:[], checkpoints:[], pulse:null, ...r}));
   if(!state.version || state.version < VERSION){ state.version = VERSION; save(); }
   function save(){ setLS(LS_KEY, state); }
 
@@ -250,6 +253,7 @@
     closeDial();
     if(tab==='home') renderHome();
     if(tab==='garage') renderGarage();
+    if(tab==='ride') renderRide();
     if(tab==='fuel') renderFuel();
     if(tab==='ai') renderAI();
   }
@@ -260,7 +264,7 @@
   }
 
   function getTimeline(limit=8){
-    const rides = state.rides.map(r => ({type:'Ride', title:`Ride +${fmt.km(r.distance)}`, amount:'', ts:r.ts, icon:'ride', sub:`${fmt.min(r.durationMs)} · ${Math.round(r.avgSpeed)} km/j`}));
+    const rides = state.rides.map(r => ({type:'Ride', title:`${r.name || 'Ride'} +${fmt.km(r.distance)}`, amount:'', ts:r.ts, icon:'ride', sub:`${fmt.min(r.durationMs)} · ${Math.round(r.avgSpeed)} km/j${r.pulse ? ' · Smooth '+r.pulse.smoothScore+'%' : ''}`}));
     const exp = state.expenses.map(e => ({type:e.category, title:e.title, amount:fmt.rp(e.amount), ts:e.ts, icon:e.category==='Fuel'?'fuel':e.category==='Service'?'wrench':e.category==='Modif'?'star':'money', sub:fmt.date(e.ts)}));
     return [...rides, ...exp].sort((a,b)=>b.ts-a.ts).slice(0,limit);
   }
@@ -422,6 +426,61 @@
   function renderTimeline(target, items){
     target.innerHTML = items.length ? items.map(t=>`<div class="timeline-item"><div class="row-icon" data-icon="${t.icon}"></div><div class="timeline-main"><b>${esc(t.title)}</b><small>${esc(t.sub || fmt.date(t.ts))}</small></div>${t.amount ? `<div class="timeline-amount">${esc(t.amount)}</div>` : ''}</div>`).join('') : `<div class="empty">Belum ada history.</div>`;
     renderIconsLater(target);
+  }
+
+
+  function latestRideContext(){
+    const r = (state.rides || [])[0];
+    if(!r) return 'belum ada ride';
+    return `${fmt.km(r.distance)}, ${fmt.min(r.durationMs)}, avg ${Math.round(r.avgSpeed)} km/j, ${r.pulse ? `Smooth ${r.pulse.smoothScore}%, Fuel Stress ${r.pulse.fuelStress}/100` : 'belum ada Ride Pulse'}`;
+  }
+
+  function renderRide(){
+    const rides = state.rides || [];
+    const places = state.places || [];
+    const totalKm = rides.reduce((a,b)=>a+safeNum(b.distance),0);
+    const pulseRides = rides.filter(r=>r.pulse);
+    const avgSmooth = pulseRides.length ? Math.round(pulseRides.reduce((a,b)=>a+b.pulse.smoothScore,0)/pulseRides.length) + '%' : '—';
+    if(el('ride-total-km')) el('ride-total-km').textContent = fmt.km(totalKm);
+    if(el('ride-count')) el('ride-count').textContent = rides.length;
+    if(el('place-count')) el('place-count').textContent = places.length;
+    if(el('ride-smooth-avg')) el('ride-smooth-avg').textContent = avgSmooth;
+    const rh = el('ride-history');
+    if(rh){
+      rh.innerHTML = rides.length ? rides.slice(0,8).map((r,i)=>rideCardHtml(r, i)).join('') : `<div class="empty">Belum ada ride. Tap GO Ride buat mulai map biru pertama.</div>`;
+      setTimeout(()=>rides.slice(0,8).forEach((r,i)=>renderRouteMap(`ride-map-${i}`, r.route || [], {small:true, checkpoints:r.checkpoints||[]})), 80);
+    }
+    const pl = el('place-list');
+    if(pl){
+      pl.innerHTML = places.length ? places.slice(0,12).map(placeCardHtml).join('') : `<div class="empty">Belum ada location memory. Tambah foto saat ride atau + Place manual.</div>`;
+      renderIconsLater(pl);
+    }
+  }
+
+  function rideCardHtml(r,i){
+    const pulse = r.pulse || computeRidePulse(r.route||[], r.distance, r.durationMs, r.maxSpeed);
+    const chips = (r.checkpoints||[]).slice(0,5).map(c=>`<div class="checkpoint"><img src="${esc(c.photo)}" alt="checkpoint"/><small>${esc(c.name||'Checkpoint')}</small></div>`).join('');
+    return `<article class="ride-card">
+      <div class="ride-card-head">
+        <div><b>${esc(r.name || 'Ride ' + fmt.date(r.ts))}</b><small>${fmt.date(r.ts)} · ${r.savedToKm ? 'Masuk Virtual KM' : 'Log saja'} · ${esc(r.detect||'Ride')}</small></div>
+        <button class="mini-link" data-action="view-ride" data-id="${esc(r.id)}">Detail</button>
+      </div>
+      <div class="route-map small" id="ride-map-${i}"></div>
+      <div class="ride-card-stats">
+        <div><b>${fmt.km(r.distance)}</b><small>Jarak</small></div>
+        <div><b>${fmt.min(r.durationMs)}</b><small>Durasi</small></div>
+        <div><b>${Math.round(r.avgSpeed||0)}</b><small>Avg km/j</small></div>
+        <div><b>${pulse.fuelStress}/100</b><small>Fuel Stress</small></div>
+      </div>
+      ${chips ? `<div class="checkpoint-strip">${chips}</div>` : ''}
+    </article>`;
+  }
+
+  function placeCardHtml(p){
+    return `<article class="place-card">
+      <div class="place-img">${p.photo ? `<img src="${esc(p.photo)}" alt="${esc(p.name)}"/>` : `<span data-icon="pin"></span>`}</div>
+      <div><b>${esc(p.name || 'Lokasi')}</b><small>${fmt.date(p.ts)} · ${p.lat && p.lon ? `${Number(p.lat).toFixed(5)}, ${Number(p.lon).toFixed(5)}` : 'manual'}<br>${esc(p.note || 'Memory lokasi NGR')}</small></div>
+    </article>`;
   }
 
   function renderFuel(){
@@ -719,36 +778,74 @@
   function saveExpense(){ const title=el('exp-title').value.trim(); const amount=safeNum(el('exp-amount').value); if(!title||!amount) return toast('Judul/nominal belum lengkap','err'); state.expenses.unshift({id:uid(), category:getPickerValue('exp-cat-picker') || 'Other', title, amount, note:el('exp-note').value.trim(), ts:Date.now()}); save(); closeSheet(); toast('Expense tersimpan'); renderAll(); }
 
   let tracker = null;
+  let liveMapTimer = 0;
+
   function openRideSheet(){
-    openSheet(`${sheetTitle('NGR Ride Lite', 'Offline GPS tanpa map. Jarak masuk KM hanya kalau disimpan.')}
+    openSheet(`${sheetTitle('NGR Ride Map', 'GPS + map biru. Foto checkpoint bisa jadi memory touring.')}
+      <div class="ride-map live" id="ride-live-map"></div>
+      <p class="tracker-map-note">Map butuh internet buat tile. Kalau offline, tracking tetap jalan dan rute bisa dilihat nanti.</p>
       <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer</div></div>
-      <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
+      <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
+      <div class="pulse-grid" id="trk-pulse" style="display:none"></div>
+      <input id="ride-photo" type="file" accept="image/*" capture="environment" hidden />
       <div class="form-actions" id="trk-actions"><button class="save-btn" data-action="tracker-start">GO</button><button class="cancel-btn" data-action="close-sheet">Tutup</button></div>`);
+    setTimeout(()=>renderRouteMap('ride-live-map', [], {live:true}), 80);
   }
-  function haversine(a,b){ const R=6371e3, toRad=x=>x*Math.PI/180; const p1=toRad(a.lat), p2=toRad(b.lat), dp=toRad(b.lat-a.lat), dl=toRad(b.lon-a.lon); const s=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2; return 2*R*Math.atan2(Math.sqrt(s),Math.sqrt(1-s)); }
+
+  function haversine(a,b){ const R=6371e3, toRad=x=>x*Math.PI/180; const p1=toRad(a.lat), p2=toRad(b.lat), dp=toRad(b.lat-a.lat), dl=toRad(b.lon-a.lon); const q=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2; return 2*R*Math.atan2(Math.sqrt(q),Math.sqrt(1-q)); }
+  function routeDistance(points){ let m=0; for(let i=1;i<points.length;i++) m += haversine(points[i-1], points[i]); return m/1000; }
+  function classifyPoint(prev,p,d,dt,speedKmh){
+    if(!prev) return 'normal';
+    if(p.acc > 50) return 'warn';
+    if(d > 220 || speedKmh > 125) return 'bad';
+    const accel = (speedKmh - safeNum(prev.speedKmh)) / Math.max(1, dt);
+    if(speedKmh < 4) return 'stop';
+    if(accel > 1.9 || speedKmh > 70) return 'stress';
+    if(accel > .95) return 'push';
+    return 'normal';
+  }
   function startTracker(){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, last:null, distance:0, maxSpeed:0, bad:0, points:0, tick:null};
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, last:null, distance:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, route:[], checkpoints:[], tick:null};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
-      const c = pos.coords; const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp, acc:c.accuracy || 999};
-      if(p.acc > 70){ tracker.bad++; return; }
+      const c = pos.coords; const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:c.speed!=null&&c.speed>=0 ? c.speed*3.6 : 0, seg:'normal'};
+      if(p.acc > 80){ tracker.bad++; updateTrackerUI(); return; }
       if(tracker.last){
-        const d = haversine(tracker.last, p); const dt = Math.max(.001, (p.ts - tracker.last.ts)/1000); const speedKmh = (d/dt)*3.6;
-        if(d < 250 && speedKmh < 130){ tracker.distance += d; tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh); tracker.points++; }
+        const d = haversine(tracker.last, p); const dt = Math.max(.001, (p.ts - tracker.last.ts)/1000); const speedKmh = p.speedKmh || (d/dt)*3.6;
+        p.speedKmh = speedKmh; p.seg = classifyPoint(tracker.last, p, d, dt, speedKmh);
+        if(p.seg !== 'bad' && d < 250 && speedKmh < 130){ if(d > 2) tracker.distance += d; tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh); tracker.currentSpeed = speedKmh; tracker.points++; tracker.route.push(p); }
         else tracker.bad++;
-      }
+      } else { tracker.route.push(p); tracker.points++; }
       tracker.last = p;
       if(c.speed != null && c.speed >= 0) tracker.maxSpeed = Math.max(tracker.maxSpeed, c.speed*3.6);
-      updateTrackerUI();
+      updateTrackerUI(); scheduleLiveMap();
     }, err=>toast('GPS: ' + err.message, 'err'), {enableHighAccuracy:true, maximumAge:1000, timeout:10000});
-    tracker.tick = setInterval(updateTrackerUI, 1000);
-    $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="save-btn" data-action="tracker-stop">Stop</button>`;
-    toast('Ride dimulai');
+    tracker.tick = setInterval(()=>{ updateTrackerUI(); scheduleLiveMap(); }, 1000);
+    $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`;
+    toast('Ride Map dimulai');
   }
   function trackerDuration(){ if(!tracker) return 0; return Date.now() - tracker.start - tracker.pausedMs - (tracker.paused ? Date.now()-tracker.pauseStart : 0); }
-  function updateTrackerUI(){ if(!tracker || !el('trk-dist')) return; const dur=trackerDuration(); const km=tracker.distance/1000; const avg=dur ? km/(dur/3600000) : 0; el('trk-dist').textContent = km.toFixed(2); el('trk-time').textContent = fmt.min(dur); el('trk-speed').textContent = Math.round(avg); el('trk-max').textContent = Math.round(tracker.maxSpeed); }
-  function pauseTracker(){ if(!tracker) return; tracker.paused = !tracker.paused; if(tracker.paused){ tracker.pauseStart=Date.now(); $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Resume</button><button class="save-btn" data-action="tracker-stop">Stop</button>`; } else { tracker.pausedMs += Date.now()-tracker.pauseStart; $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="save-btn" data-action="tracker-stop">Stop</button>`; } }
+  function updateTrackerUI(){
+    if(!tracker || !el('trk-dist')) return; const dur=trackerDuration(); const km=tracker.distance/1000; const avg=dur ? km/(dur/3600000) : 0;
+    el('trk-dist').textContent = km.toFixed(2); el('trk-time').textContent = fmt.min(dur); el('trk-speed').textContent = Math.round(avg); el('trk-max').textContent = Math.round(tracker.maxSpeed);
+    const pulse = computeRidePulse(tracker.route, km, dur, tracker.maxSpeed);
+    const pg = el('trk-pulse'); if(pg && tracker.route.length > 4){ pg.style.display='grid'; pg.innerHTML = pulseMiniHtml(pulse); }
+  }
+  function scheduleLiveMap(){ if(liveMapTimer) return; liveMapTimer = setTimeout(()=>{ liveMapTimer=0; if(tracker) renderRouteMap('ride-live-map', tracker.route, {live:true, checkpoints:tracker.checkpoints}); }, 1500); }
+  function pauseTracker(){
+    if(!tracker) return; tracker.paused = !tracker.paused;
+    if(tracker.paused){ tracker.pauseStart=Date.now(); $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Resume</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`; }
+    else { tracker.pausedMs += Date.now()-tracker.pauseStart; $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`; }
+  }
+  function pickRideCheckpoint(){ if(!tracker) return toast('Mulai ride dulu', 'err'); el('ride-photo')?.click(); }
+  async function addRideCheckpointFromFile(file){
+    if(!tracker || !tracker.last || !file) return;
+    const photo = await readImageFile({files:[file]});
+    const cp = {id:uid(), lat:tracker.last.lat, lon:tracker.last.lon, ts:Date.now(), photo, name:`Checkpoint ${tracker.checkpoints.length+1}`, note:''};
+    tracker.checkpoints.push(cp);
+    toast('Foto lokasi masuk checkpoint'); renderRouteMap('ride-live-map', tracker.route, {live:true, checkpoints:tracker.checkpoints});
+  }
   function stopTracker(){
     if(!tracker) return; if(tracker.watchId != null) navigator.geolocation.clearWatch(tracker.watchId); clearInterval(tracker.tick);
     const dur=trackerDuration(), km=tracker.distance/1000, avg=dur ? km/(dur/3600000) : 0, max=tracker.maxSpeed;
@@ -756,26 +853,127 @@
     if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
     else if(avg < 8 && max < 15){ detect='Looks Like Walking'; msg='Bos, ini kelihatan kayak jalan kaki/jogging. Jangan masukin ke KM motor dulu?'; }
     else if((avg >= 12 || max >= 20) && km >= .5){ detect='Motor Ride'; msg='Trip terlihat seperti ride motor. Aman buat masuk Virtual KM.'; }
-    const summary = {distance:km, durationMs:dur, avgSpeed:avg, maxSpeed:max, detect, msg, ts:Date.now()}; tracker = null;
-    openSheet(`${sheetTitle('Review Ride', 'KM belum masuk sebelum kamu simpan.')}
+    const route = simplifyRoute(tracker.route, 650); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max);
+    const summary = {distance:km, durationMs:dur, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ts:Date.now(), name:'Ride '+fmt.date(Date.now())}; tracker = null;
+    openSheet(`${sheetTitle('Review Ride Map', 'Rute biru + Ride Pulse. KM belum masuk sebelum disimpan.')}
+      <div class="route-map" id="ride-review-map"></div>
       <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer</div></div>
       <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg km/j</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
-      <div class="warning-box"><b>${detect}</b><br>${msg}</div>
+      <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
+      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Ride Pulse:</b> estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
+      ${checkpointStripHtml(checkpoints)}
       <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">Log saja</button><button class="save-btn" data-action="save-ride-km">Simpan KM</button></div>`);
-    sheet._rideSummary = summary;
+    sheet._rideSummary = summary; setTimeout(()=>renderRouteMap('ride-review-map', route, {checkpoints}), 80);
   }
   function saveRide(toKm){
     const r = sheet._rideSummary; if(!r) return closeSheet();
     r.id = uid(); r.savedToKm = !!toKm; state.rides.unshift(r);
+    (r.checkpoints||[]).forEach((c,idx)=>state.places.unshift({id:uid(), name:c.name || `Checkpoint ${idx+1}`, lat:c.lat, lon:c.lon, photo:c.photo, note:`Dari ${r.name || 'Ride'}`, ts:c.ts || r.ts, rideId:r.id}));
     if(toKm){ state.profile.virtualKm += r.distance; state.fuelState.liters = Math.max(0, state.fuelState.liters - (r.distance / (state.fuelState.kmPerLiter || 55))); }
-    save(); closeSheet(); toast(toKm ? 'Ride masuk Virtual KM' : 'Ride disimpan sebagai log'); renderAll();
+    save(); closeSheet(); toast(toKm ? 'Ride Map masuk Virtual KM' : 'Ride Map disimpan sebagai log'); renderAll();
+  }
+
+  function computeRidePulse(points=[], distanceKm=0, durationMs=0, maxSpeed=0){
+    const pts = points || []; let hard=0, push=0, stopMs=0, stressSegments=0, validSeg=0;
+    for(let i=1;i<pts.length;i++){
+      const a=pts[i-1], b=pts[i], dt=Math.max(1,(b.ts-a.ts)/1000), dv=safeNum(b.speedKmh)-safeNum(a.speedKmh), acc=dv/dt;
+      if(safeNum(b.speedKmh)<4) stopMs += dt*1000;
+      if(acc > 1.7 || b.seg==='stress'){ hard++; stressSegments++; }
+      else if(acc > .8 || b.seg==='push'){ push++; stressSegments += .45; }
+      if(b.seg && b.seg!=='bad') validSeg++;
+    }
+    const durMin = Math.max(1, durationMs/60000); const hardRate = hard/durMin; const stopPct = durationMs ? stopMs/durationMs : 0;
+    const fuelStress = clamp(Math.round(hardRate*22 + push*2 + stopPct*35 + Math.max(0, maxSpeed-65)*.7),0,100);
+    const smoothScore = clamp(Math.round(100 - fuelStress*.72 - hard*2.2 - stopPct*12),0,100);
+    const baseKml = state.fuelState.kmPerLiter || 55; const stressPenalty = 1 + fuelStress/170;
+    const fuelLiters = distanceKm && baseKml ? distanceKm/baseKml*stressPenalty : 0;
+    const fuelCost = fuelLiters * (state.fuelSettings?.prices?.pertalite || 10000);
+    return {smoothScore, fuelStress, hardAccel:hard, speedPush:push, stopGoMs:Math.round(stopMs), fuelLiters, fuelCost, validSeg};
+  }
+  function pulseMiniHtml(p){
+    return `<div class="pulse-metric"><b>${p.smoothScore}%</b><small>Smooth Score</small><div class="pulse-bar"><i style="width:${p.smoothScore}%"></i></div></div>
+      <div class="pulse-metric fuel-stress"><b>${p.fuelStress}/100</b><small>Fuel Stress</small><div class="pulse-bar"><i style="width:${p.fuelStress}%"></i></div></div>
+      <div class="pulse-metric"><b>${p.hardAccel}x</b><small>Speed spike</small></div>
+      <div class="pulse-metric"><b>${fmt.min(p.stopGoMs)}</b><small>Stop-go</small></div>`;
+  }
+  function checkpointStripHtml(checkpoints){
+    return checkpoints && checkpoints.length ? `<div class="checkpoint-strip">${checkpoints.map(c=>`<div class="checkpoint"><img src="${esc(c.photo)}" alt="checkpoint"/><small>${esc(c.name||'Checkpoint')}</small></div>`).join('')}</div>` : '';
+  }
+  function simplifyRoute(points, max=700){
+    if(!points || points.length<=max) return points || [];
+    const step = Math.ceil(points.length/max); return points.filter((_,i)=>i%step===0 || i===points.length-1);
+  }
+
+  function renderRouteMap(id, points=[], opts={}){
+    const node = el(id); if(!node) return; const pts = (points||[]).filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon));
+    if(window.L && pts.length){
+      if(node._leafletMap){ node._leafletMap.remove(); node._leafletMap = null; }
+      const map = L.map(node, {zoomControl:false, attributionControl:!opts.live, dragging:!opts.live, scrollWheelZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, tap:false});
+      node._leafletMap = map;
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, minZoom:2, attribution:'&copy; OpenStreetMap'}).addTo(map);
+      const latlngs = pts.map(p=>[p.lat,p.lon]);
+      drawColoredSegments(map, pts);
+      if(latlngs.length===1) map.setView(latlngs[0], 16); else map.fitBounds(latlngs, {padding:[18,18], maxZoom:17});
+      L.circleMarker(latlngs[0], {radius:5, color:'#35d07f', fillColor:'#35d07f', fillOpacity:1, weight:2}).addTo(map);
+      L.circleMarker(latlngs[latlngs.length-1], {radius:5, color:'#23d2ff', fillColor:'#23d2ff', fillOpacity:1, weight:2}).addTo(map);
+      (opts.checkpoints||[]).forEach(c=>{ if(c.lat&&c.lon) L.marker([c.lat,c.lon]).addTo(map).bindPopup(c.photo?`<img src="${esc(c.photo)}" style="width:120px;border-radius:10px"><br>${esc(c.name||'Checkpoint')}`:esc(c.name||'Checkpoint')); });
+      setTimeout(()=>map.invalidateSize(), 120);
+    } else {
+      node.innerHTML = routeFallbackSvg(pts, opts.checkpoints||[]);
+    }
+  }
+  function segColor(seg){ return seg==='stress' ? '#ff7a45' : seg==='push' ? '#ffd166' : seg==='stop' ? '#9aa4b2' : seg==='warn' ? '#ffd166' : '#2d8cff'; }
+  function drawColoredSegments(map, pts){
+    for(let i=1;i<pts.length;i++) L.polyline([[pts[i-1].lat,pts[i-1].lon],[pts[i].lat,pts[i].lon]], {color:segColor(pts[i].seg), weight:5, opacity:.92, lineCap:'round'}).addTo(map);
+  }
+  function routeFallbackSvg(points, checkpoints=[]){
+    const pts = projectPoints(points); const path = pts.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+    const cp = checkpoints.map(c=>projectOne(c, points)).filter(Boolean).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#ffd166"/>`).join('');
+    return `<div class="route-fallback"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${path?`<path d="${path}" fill="none" stroke="#2d8cff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`:''}${pts[0]?`<circle cx="${pts[0].x}" cy="${pts[0].y}" r="3" fill="#35d07f"/>`:''}${pts.at(-1)?`<circle cx="${pts.at(-1).x}" cy="${pts.at(-1).y}" r="3" fill="#23d2ff"/>`:''}${cp}</svg><div class="route-label">${points.length?'Route tersimpan. Map online belum kebuka / offline mode.':'Menunggu titik GPS...'}</div></div>`;
+  }
+  function projectPoints(points){
+    if(!points || !points.length) return [];
+    const lats=points.map(p=>+p.lat), lons=points.map(p=>+p.lon), minLat=Math.min(...lats), maxLat=Math.max(...lats), minLon=Math.min(...lons), maxLon=Math.max(...lons);
+    const dx=maxLon-minLon || .0001, dy=maxLat-minLat || .0001;
+    return points.map(p=>({x:8+((p.lon-minLon)/dx)*84, y:92-((p.lat-minLat)/dy)*84}));
+  }
+  function projectOne(c, points){
+    if(!c || !points || !points.length) return null;
+    const all=[...points,c]; const proj=projectPoints(all); return proj.at(-1);
+  }
+  function openRideDetail(id){
+    const r = state.rides.find(x=>x.id===id); if(!r) return;
+    const pulse = r.pulse || computeRidePulse(r.route||[], r.distance, r.durationMs, r.maxSpeed);
+    openSheet(`${sheetTitle(r.name || 'Ride Detail', 'Route map, foto checkpoint, dan estimasi gaya riding.')}
+      <div class="route-map" id="ride-detail-map"></div>
+      <div class="tracker-meta"><div><b>${fmt.km(r.distance)}</b><small>Jarak</small></div><div><b>${fmt.min(r.durationMs)}</b><small>Durasi</small></div><div><b>${Math.round(r.maxSpeed||0)}</b><small>Max km/j</small></div></div>
+      <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
+      <div class="ai-insight">Kang Rusdi: ride ini ${pulse.fuelStress>65?'cukup boros karena banyak speed spike/stop-go':pulse.smoothScore>78?'halus dan cukup irit':'normal, masih bisa dibuat lebih smooth'}. Estimasi fuel ${fmt.liter(pulse.fuelLiters)} (${fmt.rp(pulse.fuelCost)}). Ini estimasi dari GPS, bukan ECU asli.</div>
+      ${checkpointStripHtml(r.checkpoints||[])}
+      <div class="form-actions"><button class="save-btn" data-action="close-sheet">Tutup</button></div>`);
+    setTimeout(()=>renderRouteMap('ride-detail-map', r.route||[], {checkpoints:r.checkpoints||[]}), 80);
+  }
+  function openPlaceSheet(){
+    openSheet(`${sheetTitle('Tambah Location Memory', 'Simpan spot touring, bengkel, SPBU, atau tempat foto motor.')}
+      ${photoPicker('place-img','place-img-preview')}
+      <label class="field"><span>Nama Lokasi</span><input id="place-name" placeholder="Contoh: Waduk Pondok" /></label>
+      <div class="form-grid"><label class="field"><span>Latitude</span><input id="place-lat" type="number" step="any" placeholder="auto/current optional" /></label><label class="field"><span>Longitude</span><input id="place-lon" type="number" step="any" placeholder="auto/current optional" /></label></div>
+      <label class="field"><span>Catatan</span><textarea id="place-note" placeholder="Cerita dikit..." rows="3"></textarea></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-place">Simpan Place</button></div>`);
+    if(navigator.geolocation){ navigator.geolocation.getCurrentPosition(pos=>{ if(el('place-lat')){ el('place-lat').value=pos.coords.latitude; el('place-lon').value=pos.coords.longitude; } }, ()=>{}, {enableHighAccuracy:true, maximumAge:60000, timeout:6000}); }
+  }
+  async function savePlace(){
+    const name = el('place-name').value.trim() || 'Location Memory';
+    let photo=''; try{ photo = el('place-img')._dataUrl || await readImageFile(el('place-img')); }catch(e){ photo=''; }
+    state.places.unshift({id:uid(), name, lat:safeNum(el('place-lat').value), lon:safeNum(el('place-lon').value), note:el('place-note').value.trim(), photo, ts:Date.now()});
+    save(); closeSheet(); toast('Location memory disimpan'); renderAll();
   }
 
   function saveAISettings(){ state.ai.key=el('ai-key').value.trim(); state.ai.model=normalizeModelId(el('ai-model').value || DEFAULT_AI_MODEL); state.ai.baseUrl=el('ai-base-url').value.trim()||DEFAULT_AI_BASE_URL; el('ai-model').value = state.ai.model; save(); toast('AI settings disimpan'); renderAI(); }
   function appContext(){
     const worst = state.serviceComponents.map(c=>({name:c.name, health:serviceHealth(c).pct, left:componentSub(serviceHealth(c))})).sort((a,b)=>a.health-b.health).slice(0,5);
     const bad = state.bikeChecks.filter(p=>p.status!=='ok').slice(0,8).map(p=>`${p.name}: ${partStatusLabel(p.status)}`);
-    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Health: ${healthScore()}%. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia.`;
+    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Health: ${healthScore()}%. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia.`;
   }
   async function sendAI(){
     const input = el('ai-input'); const text = input.value.trim(); if(!text) return; if(!state.ai.key) return toast('Isi API Key dulu', 'err');
@@ -795,7 +993,7 @@
   function importData(file){ const r=new FileReader(); r.onload=()=>{ try{ const data=JSON.parse(r.result); if(!data.profile) throw new Error('File bukan backup NGR'); state = {...createDefaultState(), ...data, version:VERSION}; save(); toast('Backup berhasil diimport'); renderAll(); }catch(e){ toast('Import gagal: '+e.message,'err'); } }; r.readAsText(file); }
   function resetData(){ if(confirm('Reset semua data NGR v2?')){ localStorage.removeItem(LS_KEY); state=createDefaultState(); save(); renderAll(); toast('Data direset'); } }
 
-  function renderAll(){ renderHome(); renderGarage(); renderFuel(); renderAI(); hydrateIcons(); }
+  function renderAll(){ renderHome(); renderGarage(); renderRide(); renderFuel(); renderAI(); hydrateIcons(); }
 
   function openProfileSheet(){
     openSheet(`${sheetTitle('Profil Motor', 'Foto motor juga bisa disimpan lokal.')}
@@ -853,10 +1051,14 @@
       'tracker-start': startTracker,
       'tracker-pause': pauseTracker,
       'tracker-stop': stopTracker,
+      'ride-checkpoint': pickRideCheckpoint,
       'discard-ride': closeSheet,
       'log-ride-only': () => saveRide(false),
-      'save-ride-km': () => saveRide(true)
+      'save-ride-km': () => saveRide(true),
+      'place': openPlaceSheet,
+      'save-place': savePlace
     };
+    if(a === 'view-ride') return openRideDetail(target.dataset.id);
     if(a === 'pick-photo') return el(target.dataset.target)?.click();
     if(a === 'ai-model-preset'){ el('ai-model').value = target.dataset.model || DEFAULT_AI_MODEL; return saveAISettings(); }
     if(a === 'add-km') return addKm(target.dataset.km);
@@ -866,6 +1068,7 @@
 
   document.addEventListener('change', async e => {
     const input = e.target;
+    if(input.id === 'ride-photo'){ const f=input.files && input.files[0]; if(f) addRideCheckpointFromFile(f).catch(err=>toast(err.message||'Foto gagal','err')); input.value=''; return; }
     if(!input.matches('input[type="file"][data-preview]')) return;
     try{
       const data = await readImageFile(input);

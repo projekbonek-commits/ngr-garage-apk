@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -204,6 +205,48 @@
         </div>
       </section>
 
+
+      <section class="page" id="page-ride" data-page="ride">
+        <div class="scroll">
+          <div class="page-title reveal">
+            <p class="eyebrow">NGR RIDE MAP</p>
+            <h1>Ride Memory & Pulse</h1>
+          </div>
+
+          <div class="ride-hero panel reveal delay-1">
+            <div class="ride-hero-copy">
+              <p class="eyebrow">Touring tracker</p>
+              <h2>Map biru, foto lokasi, analisis bensin.</h2>
+              <p class="muted">Tracking tetap bisa jalan tanpa map. Kalau online, route tampil di peta.</p>
+            </div>
+            <button class="save-btn ride-go-btn" data-action="ride">GO Ride</button>
+          </div>
+
+          <div class="ride-summary-grid reveal delay-2">
+            <div class="expense-card"><small>Total Ride</small><b id="ride-total-km">0 km</b></div>
+            <div class="expense-card"><small>Trip</small><b id="ride-count">0</b></div>
+            <div class="expense-card"><small>Places</small><b id="place-count">0</b></div>
+            <div class="expense-card"><small>Avg Smooth</small><b id="ride-smooth-avg">—</b></div>
+          </div>
+
+          <section class="panel reveal delay-3">
+            <div class="panel-head">
+              <div><h2>Ride History</h2><p>Rute yang sudah dilewati warna biru. Titik foto jadi memory.</p></div>
+              <button class="pill-btn" data-action="ride">+ Ride</button>
+            </div>
+            <div class="ride-history" id="ride-history"></div>
+          </section>
+
+          <section class="panel reveal delay-4">
+            <div class="panel-head">
+              <div><h2>Location Memory</h2><p>Foto checkpoint, spot touring, bengkel, SPBU, tempat yang pernah kamu datangi.</p></div>
+              <button class="pill-btn" data-action="place">+ Place</button>
+            </div>
+            <div class="place-list" id="place-list"></div>
+          </section>
+        </div>
+      </section>
+
       <section class="page" id="page-fuel" data-page="fuel">
         <div class="scroll">
           <div class="page-title reveal">
@@ -273,6 +316,7 @@
     <nav class="bottom-nav">
       <button class="active" data-tab="home"><span data-icon="home"></span><b>Home</b></button>
       <button data-tab="garage"><span data-icon="garage"></span><b>Garage</b></button>
+      <button data-tab="ride"><span data-icon="ride"></span><b>Ride</b></button>
       <button data-tab="fuel"><span data-icon="fuel"></span><b>Fuel</b></button>
       <button data-tab="ai"><span data-icon="ai"></span><b>AI</b></button>
     </nav>
@@ -293,6 +337,7 @@
     <aside class="sheet" id="sheet" aria-live="polite"></aside>
     <div class="toast" id="toast"></div>
   </div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
