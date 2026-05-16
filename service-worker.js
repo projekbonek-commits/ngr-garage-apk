@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v4-smart-garage-os';
+const CACHE_NAME = 'ngr-v4-2-gps-ready-walk';
 const CORE_ASSETS = [
   './',
   './index.html',

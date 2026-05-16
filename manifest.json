@@ -1,7 +1,7 @@
 {
   "name": "NGR Smart Garage OS Ride Summary",
   "short_name": "NGR Ride",
-  "description": "NGR Smart Garage OS: health dashboard, garage, fuel, AI Kang Rusdi, Ride Summary Map, route memory, dan Ride Pulse.",
+  "description": "NGR Smart Garage OS: health dashboard, garage, fuel, AI Kang Rusdi, GPS Tracking Ready, Ride Summary Map, route memory, dan Ride Pulse.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
