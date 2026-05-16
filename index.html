@@ -14,7 +14,6 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -209,15 +208,15 @@
       <section class="page" id="page-ride" data-page="ride">
         <div class="scroll">
           <div class="page-title reveal">
-            <p class="eyebrow">NGR RIDE MAP</p>
-            <h1>Ride Memory & Pulse</h1>
+            <p class="eyebrow">NGR RIDE SUMMARY</p>
+            <h1>Ride Summary & Pulse</h1>
           </div>
 
           <div class="ride-hero panel reveal delay-1">
             <div class="ride-hero-copy">
-              <p class="eyebrow">Touring tracker</p>
-              <h2>Map biru, foto lokasi, analisis bensin.</h2>
-              <p class="muted">Tracking tetap bisa jalan tanpa map. Kalau online, route tampil di peta.</p>
+              <p class="eyebrow">Stable GPS tracker</p>
+              <h2>Tracking ringan, hasil ride tampil di map.</h2>
+              <p class="muted">Tanpa live map biar ringan. Map muncul setelah Stop sebagai summary ride.</p>
             </div>
             <button class="save-btn ride-go-btn" data-action="ride">GO Ride</button>
           </div>
@@ -231,7 +230,7 @@
 
           <section class="panel reveal delay-3">
             <div class="panel-head">
-              <div><h2>Ride History</h2><p>Rute yang sudah dilewati warna biru. Titik foto jadi memory.</p></div>
+              <div><h2>Ride History</h2><p>Riwayat ride, summary map, Ride Pulse, dan foto checkpoint.</p></div>
               <button class="pill-btn" data-action="ride">+ Ride</button>
             </div>
             <div class="ride-history" id="ride-history"></div>
@@ -337,7 +336,6 @@
     <aside class="sheet" id="sheet" aria-live="polite"></aside>
     <div class="toast" id="toast"></div>
   </div>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

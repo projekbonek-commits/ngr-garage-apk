@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3.4;
+  const VERSION = 3.7;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -447,8 +447,7 @@
     if(el('ride-smooth-avg')) el('ride-smooth-avg').textContent = avgSmooth;
     const rh = el('ride-history');
     if(rh){
-      rh.innerHTML = rides.length ? rides.slice(0,8).map((r,i)=>rideCardHtml(r, i)).join('') : `<div class="empty">Belum ada ride. Tap GO Ride buat mulai map biru pertama.</div>`;
-      setTimeout(()=>rides.slice(0,8).forEach((r,i)=>renderRouteMap(`ride-map-${i}`, r.route || [], {small:true, checkpoints:r.checkpoints||[]})), 80);
+      rh.innerHTML = rides.length ? rides.slice(0,12).map((r,i)=>rideCardHtml(r, i)).join('') : `<div class="empty">Belum ada ride. Tap GO Ride, lalu lihat Summary Map setelah Stop.</div>`;
     }
     const pl = el('place-list');
     if(pl){
@@ -465,12 +464,16 @@
         <div><b>${esc(r.name || 'Ride ' + fmt.date(r.ts))}</b><small>${fmt.date(r.ts)} · ${r.savedToKm ? 'Masuk Virtual KM' : 'Log saja'} · ${esc(r.detect||'Ride')}</small></div>
         <button class="mini-link" data-action="view-ride" data-id="${esc(r.id)}">Detail</button>
       </div>
-      <div class="route-map small" id="ride-map-${i}"></div>
+      <div class="ride-pulse-strip">
+        <div><b>${pulse.smoothScore}%</b><small>Smooth</small></div>
+        <div><b>${pulse.fuelStress}/100</b><small>Fuel Stress</small></div>
+        <div><b>${pulse.hardAccel}x</b><small>Speed Spike</small></div>
+      </div>
       <div class="ride-card-stats">
         <div><b>${fmt.km(r.distance)}</b><small>Jarak</small></div>
         <div><b>${fmt.min(r.durationMs)}</b><small>Durasi</small></div>
         <div><b>${Math.round(r.avgSpeed||0)}</b><small>Avg km/j</small></div>
-        <div><b>${pulse.fuelStress}/100</b><small>Fuel Stress</small></div>
+        <div><b>${fmt.liter(pulse.fuelLiters)}</b><small>Fuel est.</small></div>
       </div>
       ${chips ? `<div class="checkpoint-strip">${chips}</div>` : ''}
     </article>`;
@@ -778,27 +781,30 @@
   function saveExpense(){ const title=el('exp-title').value.trim(); const amount=safeNum(el('exp-amount').value); if(!title||!amount) return toast('Judul/nominal belum lengkap','err'); state.expenses.unshift({id:uid(), category:getPickerValue('exp-cat-picker') || 'Other', title, amount, note:el('exp-note').value.trim(), ts:Date.now()}); save(); closeSheet(); toast('Expense tersimpan'); renderAll(); }
 
   let tracker = null;
-  let liveMapTimer = 0;
 
   function openRideSheet(){
-    openSheet(`${sheetTitle('NGR Ride Map', 'GPS + map biru. Foto checkpoint bisa jadi memory touring.')}
-      <div class="ride-map live" id="ride-live-map"></div>
-      <p class="tracker-map-note">Map butuh internet buat tile. Kalau offline, tracking tetap jalan dan rute bisa dilihat nanti.</p>
-      <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer</div></div>
-      <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
-      <p class="tracker-map-note" id="trk-gps-note">GPS siap. Jarak baru dihitung kalau perpindahan lolos filter anti-ngaco.</p>
+    openSheet(`${sheetTitle('NGR Ride Lite', 'Tracking tetap ringan. Map cuma muncul di hasil ride biar gak berat.')}
+      <div class="tracker-card">
+        <div class="tracker-status-row"><span class="gps-badge" id="trk-mode">GPS Standby</span><span class="muted">Distance valid-only</span></div>
+        <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer</div></div>
+        <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
+        <p class="tracker-map-note" id="trk-gps-note">GPS siap. App baru mulai hitung jarak setelah gerakan valid terkonfirmasi.</p>
+      </div>
+      <div class="gps-rules">
+        <b>Stable Mode aktif</b>
+        <small>Live map dimatikan supaya ringan. Setelah Stop, rute valid muncul di Ride Summary Map.</small>
+      </div>
       <div class="pulse-grid" id="trk-pulse" style="display:none"></div>
       <input id="ride-photo" type="file" accept="image/*" capture="environment" hidden />
       <div class="form-actions" id="trk-actions"><button class="save-btn" data-action="tracker-start">GO</button><button class="cancel-btn" data-action="close-sheet">Tutup</button></div>`);
-    setTimeout(()=>renderRouteMap('ride-live-map', [], {live:true}), 80);
   }
 
   function haversine(a,b){ const R=6371e3, toRad=x=>x*Math.PI/180; const p1=toRad(a.lat), p2=toRad(b.lat), dp=toRad(b.lat-a.lat), dl=toRad(b.lon-a.lon); const q=Math.sin(dp/2)**2+Math.cos(p1)*Math.cos(p2)*Math.sin(dl/2)**2; return 2*R*Math.atan2(Math.sqrt(q),Math.sqrt(1-q)); }
   function routeDistance(points){ let m=0; for(let i=1;i<points.length;i++) m += haversine(points[i-1], points[i]); return m/1000; }
   function classifyPoint(prev,p,d,dt,speedKmh){
     if(!prev) return 'normal';
-    if(p.acc > 55) return 'warn';
-    if(d > 220 || speedKmh > 125) return 'bad';
+    if(p.acc > 50) return 'warn';
+    if(d > 180 || speedKmh > 115) return 'bad';
     const accel = (speedKmh - safeNum(prev.speedKmh)) / Math.max(1, dt);
     if(speedKmh < 4) return 'stop';
     if(accel > 1.9 || speedKmh > 70) return 'stress';
@@ -806,93 +812,119 @@
     return 'normal';
   }
   function gpsNoiseMeters(a,b){
-    const accA = Math.min(60, Math.max(0, safeNum(a?.acc || 0)));
-    const accB = Math.min(60, Math.max(0, safeNum(b?.acc || 0)));
-    return clamp(Math.max(8, (accA + accB) * .45), 8, 32);
+    const accA = Math.min(80, Math.max(0, safeNum(a?.acc || 0)));
+    const accB = Math.min(80, Math.max(0, safeNum(b?.acc || 0)));
+    return clamp(Math.max(30, (accA + accB) * .72), 30, 70);
   }
-  function isStationaryDrift(prev,p,d,dt,speedKmh){
-    if(!prev) return false;
-    const noise = gpsNoiseMeters(prev,p);
-    const sensorSpeed = p.rawSpeedKmh;
-    const slowSensor = !Number.isFinite(sensorSpeed) || sensorSpeed < 6;
-    const shortHop = d <= noise;
-    const slowDerived = speedKmh < 7;
-    return shortHop && (slowSensor || slowDerived) && dt < 90;
+  function rawSpeedKmh(coords){ return coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : NaN; }
+  function movementGate(ref,p,d,dt,speedKmh,raw){
+    const need = gpsNoiseMeters(ref,p);
+    const hasSpeed = (Number.isFinite(raw) && raw >= 7) || speedKmh >= 8;
+    const saneTime = dt > 0.8 && dt < 45;
+    return p.acc <= 35 && d >= need && hasSpeed && saneTime && speedKmh < 115;
   }
-  function addStationaryPoint(p){
-    tracker.currentSpeed = 0;
-    tracker.stopMs += Math.max(0, p.ts - (tracker.last?.ts || p.ts));
-    tracker.stillCount++;
-    if(tracker.route.length && (p.ts - (tracker.route.at(-1).ts || 0) > 18000)){
-      const last = tracker.route.at(-1);
-      tracker.route.push({...last, ts:p.ts, speedKmh:0, rawSpeedKmh:0, seg:'stop', acc:p.acc});
-      scheduleLiveMap();
+  function addAcceptedPoint(p, ref, d, dt, speedKmh){
+    const prev = tracker.lastAccepted;
+    const seg = classifyPoint(prev || ref, p, d, dt, speedKmh);
+    if(seg === 'bad') { tracker.bad++; tracker.gpsNote = 'GPS loncat, titik dibuang'; return false; }
+    p.speedKmh = speedKmh;
+    p.seg = seg;
+    if(prev){
+      tracker.distance += d;
+      tracker.movingMs += Math.min(dt * 1000, 12000);
     }
+    tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh);
+    tracker.currentSpeed = speedKmh;
+    tracker.points++;
+    tracker.lastAccepted = p;
+    tracker.anchor = p;
+    tracker.route.push(p);
+    tracker.pending = [];
+    tracker.gpsNote = `Moving · GPS ±${Math.round(p.acc)}m · +${Math.round(prev ? d : 0)}m`;
+    return true;
+  }
+  function ignoreAsDrift(p, reason='Indoor drift ignored'){
+    tracker.ignored++;
+    tracker.currentSpeed = 0;
+    tracker.lastRaw = p;
+    if(tracker.lastAccepted) tracker.stopMs += Math.max(0, p.ts - (tracker.lastRaw?.ts || p.ts));
+    if(!tracker.lastAccepted && p.acc <= 45) tracker.anchor = p;
+    tracker.gpsNote = `${reason} · ±${Math.round(p.acc)}m`;
   }
   function startTracker(){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, last:null, distance:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, stillCount:0, stopMs:0, gpsNote:'Menunggu GPS...', route:[], checkpoints:[], tick:null};
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:null, lastAccepted:null, lastRaw:null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, stopMs:0, gpsNote:'Mencari GPS stabil...', route:[], checkpoints:[], tick:null};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
       const c = pos.coords;
-      const rawSpeedKmh = c.speed!=null&&c.speed>=0 ? c.speed*3.6 : NaN;
-      const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:Number.isFinite(rawSpeedKmh) ? rawSpeedKmh : 0, rawSpeedKmh, seg:'normal'};
-      if(p.acc > 80){ tracker.bad++; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), titik diabaikan`; updateTrackerUI(); return; }
-      if(tracker.last){
-        const d = haversine(tracker.last, p);
-        const dt = Math.max(.001, (p.ts - tracker.last.ts)/1000);
-        const derivedSpeed = (d/dt)*3.6;
-        let speedKmh = Number.isFinite(rawSpeedKmh) && rawSpeedKmh > 1 ? rawSpeedKmh : derivedSpeed;
-        if(isStationaryDrift(tracker.last, p, d, dt, speedKmh)){
-          p.seg = 'stop'; p.speedKmh = 0;
-          tracker.ignored++; tracker.points++;
-          tracker.gpsNote = `Diam / kasir mode: drift ${Math.round(d)}m diabaikan`;
-          addStationaryPoint(p);
-          tracker.last = {...tracker.last, ts:p.ts, acc:Math.min(tracker.last.acc || 999, p.acc)};
-          updateTrackerUI();
-          return;
-        }
-        p.speedKmh = speedKmh;
-        p.seg = classifyPoint(tracker.last, p, d, dt, speedKmh);
-        const minMove = Math.max(5, Math.min(18, gpsNoiseMeters(tracker.last,p) * .55));
-        const validMove = p.seg !== 'bad' && d >= minMove && d < 250 && speedKmh < 130;
-        if(validMove){
-          tracker.distance += d;
-          tracker.maxSpeed = Math.max(tracker.maxSpeed, speedKmh);
-          tracker.currentSpeed = speedKmh;
-          tracker.points++;
-          tracker.stillCount = 0;
-          tracker.gpsNote = `GPS OK ±${Math.round(p.acc)}m · +${Math.round(d)}m`;
-          tracker.route.push(p);
-          tracker.last = p;
-          scheduleLiveMap();
-        } else {
-          tracker.bad++;
-          tracker.gpsNote = p.seg === 'bad' ? 'GPS loncat, titik dibuang' : `Gerak ${Math.round(d)}m belum cukup valid`;
-          tracker.last = {...tracker.last, ts:p.ts, acc:Math.min(tracker.last.acc || 999, p.acc)};
-        }
-      } else {
-        tracker.route.push({...p, speedKmh:0, seg:'normal'});
-        tracker.points++;
-        tracker.last = p;
-        tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m`;
-        scheduleLiveMap();
+      const raw = rawSpeedKmh(c);
+      const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:0, rawSpeedKmh:raw, seg:'normal'};
+      if(p.acc > 65){ tracker.bad++; tracker.lastRaw = p; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), tunggu sinyal stabil`; updateTrackerUI(); return; }
+      if(!tracker.anchor){ tracker.anchor = p; tracker.lastRaw = p; tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m · belum hitung jarak`; updateTrackerUI(); return; }
+
+      const ref = tracker.lastAccepted || tracker.anchor;
+      const d = haversine(ref, p);
+      const dt = Math.max(.001, (p.ts - ref.ts)/1000);
+      const derivedSpeed = (d/dt)*3.6;
+      const speedKmh = Number.isFinite(raw) && raw > 1 ? raw : derivedSpeed;
+
+      if(!movementGate(ref, p, d, dt, speedKmh, raw)){
+        const why = tracker.lastAccepted ? `Idle / drift ${Math.round(d)}m diabaikan` : `Indoor drift ${Math.round(d)}m diabaikan`;
+        ignoreAsDrift(p, why);
+        updateTrackerUI();
+        return;
       }
+
+      if(!tracker.lastAccepted){
+        tracker.pending.push(p);
+        tracker.gpsNote = `Gerakan terdeteksi ${tracker.pending.length}/3 · konfirmasi dulu`;
+        if(tracker.pending.length >= 3 || d >= 85){
+          const first = tracker.pending[0];
+          first.speedKmh = 0; first.seg = 'normal';
+          tracker.lastAccepted = first; tracker.route.push(first); tracker.points++;
+          for(const nxt of tracker.pending.slice(1)){
+            const prev = tracker.lastAccepted;
+            const dd = haversine(prev, nxt);
+            const ddT = Math.max(.001, (nxt.ts - prev.ts)/1000);
+            const sp = Number.isFinite(nxt.rawSpeedKmh) && nxt.rawSpeedKmh > 1 ? nxt.rawSpeedKmh : (dd/ddT)*3.6;
+            addAcceptedPoint(nxt, prev, dd, ddT, sp);
+          }
+          tracker.gpsNote = 'Moving confirmed · jarak mulai dihitung';
+        }
+        tracker.lastRaw = p;
+        updateTrackerUI();
+        return;
+      }
+
+      const ok = d < 180 && speedKmh < 115 && p.acc <= 45;
+      if(ok) addAcceptedPoint(p, tracker.lastAccepted, d, dt, speedKmh);
+      else { tracker.bad++; ignoreAsDrift(p, d >= 180 ? 'GPS loncat dibuang' : 'GPS kurang stabil'); }
+      tracker.lastRaw = p;
       updateTrackerUI();
     }, err=>toast('GPS: ' + err.message, 'err'), {enableHighAccuracy:true, maximumAge:500, timeout:12000});
-    tracker.tick = setInterval(()=>{ updateTrackerUI(); scheduleLiveMap(); }, 1000);
+    tracker.tick = setInterval(()=>updateTrackerUI(), 1000);
     $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`;
-    toast('Ride Map dimulai');
+    toast('Ride Lite dimulai');
   }
   function trackerDuration(){ if(!tracker) return 0; return Date.now() - tracker.start - tracker.pausedMs - (tracker.paused ? Date.now()-tracker.pauseStart : 0); }
+  function trackerAvgSpeed(){ if(!tracker || tracker.movingMs <= 0 || tracker.distance < 20) return 0; return (tracker.distance/1000) / (tracker.movingMs/3600000); }
   function updateTrackerUI(){
-    if(!tracker || !el('trk-dist')) return; const dur=trackerDuration(); const km=tracker.distance/1000; const avg=dur && tracker.distance > 12 ? km/(dur/3600000) : 0;
-    el('trk-dist').textContent = km.toFixed(2); el('trk-time').textContent = fmt.min(dur); el('trk-speed').textContent = Math.round(avg); el('trk-max').textContent = Math.round(tracker.maxSpeed);
+    if(!tracker || !el('trk-dist')) return;
+    const dur=trackerDuration(), km=tracker.distance/1000, avg=trackerAvgSpeed();
+    el('trk-dist').textContent = km.toFixed(2);
+    el('trk-time').textContent = fmt.min(dur);
+    el('trk-speed').textContent = Math.round(avg);
+    el('trk-max').textContent = Math.round(tracker.maxSpeed);
     if(el('trk-gps-note')) el('trk-gps-note').textContent = tracker.gpsNote || 'GPS aktif';
+    const badge = el('trk-mode');
+    if(badge){
+      const moving = tracker.currentSpeed > 6 && tracker.distance > 0;
+      badge.textContent = tracker.paused ? 'Paused' : moving ? 'Moving' : tracker.lastAccepted ? 'Idle Lock' : 'Searching GPS';
+      badge.className = 'gps-badge' + (tracker.bad > tracker.points ? ' danger' : tracker.ignored ? ' warn' : '');
+    }
     const pulse = computeRidePulse(tracker.route, km, dur, tracker.maxSpeed, tracker.stopMs);
-    const pg = el('trk-pulse'); if(pg && tracker.route.length > 4){ pg.style.display='grid'; pg.innerHTML = pulseMiniHtml(pulse); }
+    const pg = el('trk-pulse'); if(pg && tracker.route.length > 3){ pg.style.display='grid'; pg.innerHTML = pulseMiniHtml(pulse); }
   }
-  function scheduleLiveMap(){ if(liveMapTimer) return; liveMapTimer = setTimeout(()=>{ liveMapTimer=0; if(tracker) renderRouteMap('ride-live-map', tracker.route, {live:true, checkpoints:tracker.checkpoints}); }, 1500); }
   function pauseTracker(){
     if(!tracker) return; tracker.paused = !tracker.paused;
     if(tracker.paused){ tracker.pauseStart=Date.now(); $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Resume</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`; }
@@ -900,37 +932,41 @@
   }
   function pickRideCheckpoint(){ if(!tracker) return toast('Mulai ride dulu', 'err'); el('ride-photo')?.click(); }
   async function addRideCheckpointFromFile(file){
-    if(!tracker || !tracker.last || !file) return;
+    if(!tracker || !file) return;
+    const loc = tracker.lastAccepted || tracker.lastRaw || tracker.anchor;
+    if(!loc) return toast('GPS belum lock', 'err');
     const photo = await readImageFile({files:[file]});
-    const cp = {id:uid(), lat:tracker.last.lat, lon:tracker.last.lon, ts:Date.now(), photo, name:`Checkpoint ${tracker.checkpoints.length+1}`, note:''};
+    const cp = {id:uid(), lat:loc.lat, lon:loc.lon, ts:Date.now(), photo, name:`Checkpoint ${tracker.checkpoints.length+1}`, note:''};
     tracker.checkpoints.push(cp);
-    toast('Foto lokasi masuk checkpoint'); renderRouteMap('ride-live-map', tracker.route, {live:true, checkpoints:tracker.checkpoints});
+    toast('Foto lokasi masuk checkpoint');
   }
   function stopTracker(){
     if(!tracker) return; if(tracker.watchId != null) navigator.geolocation.clearWatch(tracker.watchId); clearInterval(tracker.tick);
-    const dur=trackerDuration(), km=tracker.distance/1000, avg=dur ? km/(dur/3600000) : 0, max=tracker.maxSpeed;
+    const dur=trackerDuration(), km=tracker.distance/1000, avg=trackerAvgSpeed(), max=tracker.maxSpeed;
     const badRatio = tracker.bad / Math.max(1, tracker.bad + tracker.points); let detect='Suspicious', msg='Data agak nanggung, review dulu sebelum masuk KM.';
-    if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
+    if(km < .05 && max < 10){ detect='No Movement'; msg='Kayaknya kamu masih diam. Jarak tidak masuk Virtual KM kecuali kamu paksa simpan.'; }
+    else if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
     else if(avg < 8 && max < 15){ detect='Looks Like Walking'; msg='Bos, ini kelihatan kayak jalan kaki/jogging. Jangan masukin ke KM motor dulu?'; }
-    else if((avg >= 12 || max >= 20) && km >= .5){ detect='Motor Ride'; msg='Trip terlihat seperti ride motor. Aman buat masuk Virtual KM.'; }
-    const route = simplifyRoute(tracker.route, 650); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max, tracker.stopMs);
-    const summary = {distance:km, durationMs:dur, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ts:Date.now(), name:'Ride '+fmt.date(Date.now())}; tracker = null;
-    openSheet(`${sheetTitle('Review Ride Map', 'Rute biru + Ride Pulse. KM belum masuk sebelum disimpan.')}
-      <div class="route-map" id="ride-review-map"></div>
-      <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer</div></div>
-      <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg km/j</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
+    else if((avg >= 12 || max >= 20) && km >= .2){ detect='Motor Ride'; msg='Trip terlihat seperti ride motor. Aman buat masuk Virtual KM.'; }
+    const route = simplifyRoute(tracker.route, 450); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max, tracker.stopMs);
+    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, ts:Date.now(), name:'Ride '+fmt.date(Date.now())}; tracker = null;
+    openSheet(`${sheetTitle('Review Ride Lite', 'KM belum masuk sebelum kamu simpan.')}
+      <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer valid</div></div>
+      <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg valid</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
-      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Ride Pulse:</b> estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Drift GPS saat diam sudah difilter. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
+      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
+      ${renderRideSummaryMapShell('ride-review-map', route, checkpoints)}
       ${checkpointStripHtml(checkpoints)}
       <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">Log saja</button><button class="save-btn" data-action="save-ride-km">Simpan KM</button></div>`);
-    sheet._rideSummary = summary; setTimeout(()=>renderRouteMap('ride-review-map', route, {checkpoints}), 80);
+    sheet._rideSummary = summary;
+    setTimeout(() => renderRideSummaryMap('ride-review-map', route, checkpoints), 80);
   }
   function saveRide(toKm){
     const r = sheet._rideSummary; if(!r) return closeSheet();
     r.id = uid(); r.savedToKm = !!toKm; state.rides.unshift(r);
     (r.checkpoints||[]).forEach((c,idx)=>state.places.unshift({id:uid(), name:c.name || `Checkpoint ${idx+1}`, lat:c.lat, lon:c.lon, photo:c.photo, note:`Dari ${r.name || 'Ride'}`, ts:c.ts || r.ts, rideId:r.id}));
     if(toKm){ state.profile.virtualKm += r.distance; state.fuelState.liters = Math.max(0, state.fuelState.liters - (r.distance / (state.fuelState.kmPerLiter || 55))); }
-    save(); closeSheet(); toast(toKm ? 'Ride Map masuk Virtual KM' : 'Ride Map disimpan sebagai log'); renderAll();
+    save(); closeSheet(); toast(toKm ? 'Ride Lite masuk Virtual KM' : 'Ride Lite disimpan sebagai log'); renderAll();
   }
 
   function computeRidePulse(points=[], distanceKm=0, durationMs=0, maxSpeed=0, extraStopMs=0){
@@ -965,55 +1001,114 @@
     const step = Math.ceil(points.length/max); return points.filter((_,i)=>i%step===0 || i===points.length-1);
   }
 
-  function renderRouteMap(id, points=[], opts={}){
-    const node = el(id); if(!node) return; const pts = (points||[]).filter(p=>Number.isFinite(+p.lat)&&Number.isFinite(+p.lon));
-    if(window.L && pts.length){
-      if(node._leafletMap){ node._leafletMap.remove(); node._leafletMap = null; }
-      const map = L.map(node, {zoomControl:false, attributionControl:!opts.live, dragging:!opts.live, scrollWheelZoom:false, doubleClickZoom:false, boxZoom:false, keyboard:false, tap:false});
-      node._leafletMap = map;
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom:19, minZoom:2, attribution:'&copy; OpenStreetMap'}).addTo(map);
-      const latlngs = pts.map(p=>[p.lat,p.lon]);
-      drawColoredSegments(map, pts);
-      if(latlngs.length===1) map.setView(latlngs[0], 16); else map.fitBounds(latlngs, {padding:[18,18], maxZoom:17});
-      L.circleMarker(latlngs[0], {radius:5, color:'#35d07f', fillColor:'#35d07f', fillOpacity:1, weight:2}).addTo(map);
-      L.circleMarker(latlngs[latlngs.length-1], {radius:5, color:'#23d2ff', fillColor:'#23d2ff', fillOpacity:1, weight:2}).addTo(map);
-      (opts.checkpoints||[]).forEach(c=>{ if(c.lat&&c.lon) L.marker([c.lat,c.lon]).addTo(map).bindPopup(c.photo?`<img src="${esc(c.photo)}" style="width:120px;border-radius:10px"><br>${esc(c.name||'Checkpoint')}`:esc(c.name||'Checkpoint')); });
-      setTimeout(()=>map.invalidateSize(), 120);
-    } else {
-      node.innerHTML = routeFallbackSvg(pts, opts.checkpoints||[]);
+  function renderRouteStats(points=[], checkpoints=[]){
+    const pts = points || [];
+    return `<div class="gps-rules"><b>Route data</b><small>${pts.length} titik valid tersimpan · ${checkpoints.length} foto checkpoint. Map hanya dirender di summary/detail, bukan live tracking.</small></div>`;
+  }
+
+  function renderRideSummaryMapShell(id, route=[], checkpoints=[]){
+    const pts = route || [];
+    const hasRoute = pts.length >= 2;
+    return `<div class="ride-map-card">
+      <div class="ride-map-head"><b>Ride Summary Map</b><small>${pts.length} titik valid · ${checkpoints.length} foto checkpoint</small></div>
+      <div id="${id}" class="ride-summary-map ${hasRoute ? '' : 'empty'}">
+        ${hasRoute ? '<div class="map-loading">Loading map hasil ride...</div>' : '<div class="map-empty"><b>Belum ada rute valid</b><small>GPS belum cukup stabil buat gambar route.</small></div>'}
+      </div>
+      <small class="ride-map-note">Map muncul setelah ride selesai supaya tracking tetap ringan. Kalau offline, rute tetap tersimpan dan map bisa muncul saat online.</small>
+    </div>`;
+  }
+
+  let _leafletLoadPromise = null;
+  function ensureLeaflet(){
+    if(window.L) return Promise.resolve(window.L);
+    if(_leafletLoadPromise) return _leafletLoadPromise;
+    _leafletLoadPromise = new Promise((resolve, reject) => {
+      const cssId = 'leaflet-css';
+      if(!document.getElementById(cssId)){
+        const link = document.createElement('link');
+        link.id = cssId;
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        document.head.appendChild(link);
+      }
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.async = true;
+      script.onload = () => window.L ? resolve(window.L) : reject(new Error('Leaflet gagal dimuat'));
+      script.onerror = () => reject(new Error('Map butuh internet untuk tile/library'));
+      document.head.appendChild(script);
+    });
+    return _leafletLoadPromise;
+  }
+
+  function routeBounds(route=[]){
+    const pts = (route || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
+    if(!pts.length) return null;
+    const lats = pts.map(p=>Number(p.lat));
+    const lons = pts.map(p=>Number(p.lon));
+    return {minLat:Math.min(...lats), maxLat:Math.max(...lats), minLon:Math.min(...lons), maxLon:Math.max(...lons)};
+  }
+
+  function fallbackRouteSvg(route=[]){
+    const pts = (route || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
+    if(pts.length < 2) return '<div class="map-empty"><b>Rute belum cukup</b><small>Minimal 2 titik valid.</small></div>';
+    const b = routeBounds(pts);
+    const w = 320, h = 180, pad = 24;
+    const dx = Math.max(1e-9, b.maxLon - b.minLon), dy = Math.max(1e-9, b.maxLat - b.minLat);
+    const xy = p => {
+      const x = pad + ((Number(p.lon)-b.minLon)/dx) * (w-pad*2);
+      const y = h - pad - ((Number(p.lat)-b.minLat)/dy) * (h-pad*2);
+      return [x,y];
+    };
+    const d = pts.map((p,i)=>{ const [x,y]=xy(p); return `${i?'L':'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join(' ');
+    const [sx,sy] = xy(pts[0]); const [ex,ey] = xy(pts[pts.length-1]);
+    return `<svg viewBox="0 0 ${w} ${h}" class="route-svg" role="img" aria-label="Route preview"><defs><linearGradient id="routeGrad" x1="0" x2="1"><stop offset="0" stop-color="#2d8cff"/><stop offset="1" stop-color="#23d2ff"/></linearGradient></defs><path d="${d}" fill="none" stroke="url(#routeGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${sx}" cy="${sy}" r="7" fill="#35d07f"/><circle cx="${ex}" cy="${ey}" r="7" fill="#ff5b6e"/></svg>`;
+  }
+
+  async function renderRideSummaryMap(id, route=[], checkpoints=[]){
+    const box = el(id);
+    if(!box) return;
+    const pts = (route || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
+    if(pts.length < 2){ box.innerHTML = '<div class="map-empty"><b>Belum ada rute valid</b><small>Tracking tidak cukup buat map.</small></div>'; return; }
+    try{
+      const L = await ensureLeaflet();
+      if(!el(id)) return;
+      box.innerHTML = '';
+      const map = L.map(id, {zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, tap:true});
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19, subdomains:'abcd'}).addTo(map);
+      const latlngs = pts.map(p => [Number(p.lat), Number(p.lon)]);
+      const line = L.polyline(latlngs, {color:'#2d8cff', weight:5, opacity:.92, lineCap:'round', lineJoin:'round'}).addTo(map);
+      L.circleMarker(latlngs[0], {radius:7, color:'#06131e', weight:3, fillColor:'#35d07f', fillOpacity:1}).addTo(map);
+      L.circleMarker(latlngs[latlngs.length-1], {radius:7, color:'#06131e', weight:3, fillColor:'#ff5b6e', fillOpacity:1}).addTo(map);
+      (checkpoints||[]).filter(c=>c.lat&&c.lon).forEach(c => {
+        const marker = L.circleMarker([Number(c.lat), Number(c.lon)], {radius:6, color:'#06131e', weight:2, fillColor:'#ffd166', fillOpacity:1}).addTo(map);
+        if(c.photo) marker.bindPopup(`<img src="${c.photo}" style="width:120px;height:82px;object-fit:cover;border-radius:10px;display:block;margin-bottom:6px"><b>${esc(c.name || 'Checkpoint')}</b>`);
+      });
+      map.fitBounds(line.getBounds(), {padding:[18,18]});
+      setTimeout(()=>map.invalidateSize(), 160);
+    }catch(err){
+      box.innerHTML = fallbackRouteSvg(pts) + `<div class="map-fallback-note">Map tile butuh internet. Ini preview rute offline dari titik GPS valid.</div>`;
     }
   }
-  function segColor(seg){ return seg==='stress' ? '#ff7a45' : seg==='push' ? '#ffd166' : seg==='stop' ? '#9aa4b2' : seg==='warn' ? '#ffd166' : '#2d8cff'; }
-  function drawColoredSegments(map, pts){
-    for(let i=1;i<pts.length;i++) L.polyline([[pts[i-1].lat,pts[i-1].lon],[pts[i].lat,pts[i].lon]], {color:segColor(pts[i].seg), weight:5, opacity:.92, lineCap:'round'}).addTo(map);
-  }
-  function routeFallbackSvg(points, checkpoints=[]){
-    const pts = projectPoints(points); const path = pts.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
-    const cp = checkpoints.map(c=>projectOne(c, points)).filter(Boolean).map(p=>`<circle cx="${p.x}" cy="${p.y}" r="4" fill="#ffd166"/>`).join('');
-    return `<div class="route-fallback"><svg viewBox="0 0 100 100" preserveAspectRatio="none">${path?`<path d="${path}" fill="none" stroke="#2d8cff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>`:''}${pts[0]?`<circle cx="${pts[0].x}" cy="${pts[0].y}" r="3" fill="#35d07f"/>`:''}${pts.at(-1)?`<circle cx="${pts.at(-1).x}" cy="${pts.at(-1).y}" r="3" fill="#23d2ff"/>`:''}${cp}</svg><div class="route-label">${points.length?'Route tersimpan. Map online belum kebuka / offline mode.':'Menunggu titik GPS...'}</div></div>`;
-  }
-  function projectPoints(points){
-    if(!points || !points.length) return [];
-    const lats=points.map(p=>+p.lat), lons=points.map(p=>+p.lon), minLat=Math.min(...lats), maxLat=Math.max(...lats), minLon=Math.min(...lons), maxLon=Math.max(...lons);
-    const dx=maxLon-minLon || .0001, dy=maxLat-minLat || .0001;
-    return points.map(p=>({x:8+((p.lon-minLon)/dx)*84, y:92-((p.lat-minLat)/dy)*84}));
-  }
-  function projectOne(c, points){
-    if(!c || !points || !points.length) return null;
-    const all=[...points,c]; const proj=projectPoints(all); return proj.at(-1);
-  }
+
   function openRideDetail(id){
     const r = state.rides.find(x=>x.id===id); if(!r) return;
     const pulse = r.pulse || computeRidePulse(r.route||[], r.distance, r.durationMs, r.maxSpeed);
-    openSheet(`${sheetTitle(r.name || 'Ride Detail', 'Route map, foto checkpoint, dan estimasi gaya riding.')}
-      <div class="route-map" id="ride-detail-map"></div>
+    openSheet(`${sheetTitle(r.name || 'Ride Detail', 'Summary map, foto checkpoint, dan estimasi gaya riding.')}
+      <div class="ride-pulse-strip big">
+        <div><b>${pulse.smoothScore}%</b><small>Smooth Score</small></div>
+        <div><b>${pulse.fuelStress}/100</b><small>Fuel Stress</small></div>
+        <div><b>${pulse.hardAccel}x</b><small>Speed Spike</small></div>
+      </div>
       <div class="tracker-meta"><div><b>${fmt.km(r.distance)}</b><small>Jarak</small></div><div><b>${fmt.min(r.durationMs)}</b><small>Durasi</small></div><div><b>${Math.round(r.maxSpeed||0)}</b><small>Max km/j</small></div></div>
+      ${renderRideSummaryMapShell('ride-detail-map', r.route||[], r.checkpoints||[])}
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
       <div class="ai-insight">Kang Rusdi: ride ini ${pulse.fuelStress>65?'cukup boros karena banyak speed spike/stop-go':pulse.smoothScore>78?'halus dan cukup irit':'normal, masih bisa dibuat lebih smooth'}. Estimasi fuel ${fmt.liter(pulse.fuelLiters)} (${fmt.rp(pulse.fuelCost)}). Ini estimasi dari GPS, bukan ECU asli.</div>
       ${checkpointStripHtml(r.checkpoints||[])}
       <div class="form-actions"><button class="save-btn" data-action="close-sheet">Tutup</button></div>`);
-    setTimeout(()=>renderRouteMap('ride-detail-map', r.route||[], {checkpoints:r.checkpoints||[]}), 80);
+    setTimeout(() => renderRideSummaryMap('ride-detail-map', r.route||[], r.checkpoints||[]), 80);
   }
+
   function openPlaceSheet(){
     openSheet(`${sheetTitle('Tambah Location Memory', 'Simpan spot touring, bengkel, SPBU, atau tempat foto motor.')}
       ${photoPicker('place-img','place-img-preview')}

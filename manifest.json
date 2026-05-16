@@ -1,7 +1,7 @@
 {
-  "name": "NGR Health Garage Ride Map",
+  "name": "NGR Health Garage Ride Summary",
   "short_name": "NGR Ride",
-  "description": "NGR Health Garage: health dashboard, garage, fuel, AI Kang Rusdi, Ride Map, route memory, dan Ride Pulse.",
+  "description": "NGR Health Garage: health dashboard, garage, fuel, AI Kang Rusdi, Ride Summary Map, route memory, dan Ride Pulse.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

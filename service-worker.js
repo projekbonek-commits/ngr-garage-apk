@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-health-v3-4';
+const CACHE_NAME = 'ngr-v3-7-ride-summary-map';
 const CORE_ASSETS = [
   './',
   './index.html',
