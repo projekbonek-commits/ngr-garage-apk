@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v4-2-gps-ready-walk';
+const CACHE_NAME = 'ngr-v4-4-dual-ride-mode';
 const CORE_ASSETS = [
   './',
   './index.html',

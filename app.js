@@ -931,16 +931,22 @@
   let tracker = null, warmup = null;
 
   function openRideSheet(){
-    openSheet(`${sheetTitle('NGR Ride Lite', 'GPS siap dulu, baru jalan. Biar jarak nggak kosong.')}
+    const modes = [
+      {value:'ride', label:'Ride Motor', sub:'buat naik Beat. Macet/pelan tetap dihitung kalau GPS valid.', icon:'ride', tone:'ok', meta:'utama'},
+      {value:'walk', label:'Test Jalan Kaki', sub:'buat ngetes GPS. Tidak masuk Virtual KM motor.', icon:'map', tone:'warn', meta:'test'}
+    ];
+    openSheet(`${sheetTitle('NGR Ride Lite', 'Pilih mode dulu biar tracking nggak salah baca macet/jalan kaki.')}
+      <div class="mini-caption">Mode tracking</div>
+      ${smartPicker('ride-mode-picker', modes, 'ride', 'status-picker')}
       <div class="tracker-card">
         <div class="tracker-status-row"><span class="gps-badge warn">Cek GPS</span><span class="muted">tunggu status SIAP</span></div>
         <div class="tracker-display"><div class="tracker-distance">GPS</div><div class="muted">siap jalan?</div></div>
-        <div class="tracker-meta"><div><b>±25m</b><small>Ideal</small></div><div><b>±35m</b><small>Ready</small></div><div><b>Force</b><small>darurat</small></div></div>
-        <p class="tracker-map-note">Taruh HP di dashboard. Jangan jalan dulu sampai muncul status <b>GPS TRACKING SIAP — JALAN SEKARANG</b>.</p>
+        <div class="tracker-meta"><div><b>Ride</b><small>macet aman</small></div><div><b>Walk</b><small>test GPS</small></div><div><b>Force</b><small>darurat</small></div></div>
+        <p class="tracker-map-note">Mode <b>Ride Motor</b> lebih toleran buat macet/merayap. Mode <b>Test Jalan Kaki</b> cuma buat cek GPS dan default-nya log saja.</p>
       </div>
       <div class="gps-rules">
         <b>GPS harus siap dulu</b>
-        <small>Setelah tap GO, NGR nyari sinyal dulu. Kalau sudah siap, status berubah jadi GPS TRACKING SIAP — baru gas.</small>
+        <small>Setelah tap cek GPS, tunggu status <b>GPS TRACKING SIAP</b>. Baru jalan/gas.</small>
       </div>
       <div class="form-actions" id="trk-actions"><button class="save-btn" data-action="tracker-start">Cek GPS</button><button class="cancel-btn" data-action="close-sheet">Tutup</button></div>`);
   }
@@ -979,13 +985,14 @@
       btn.textContent = ready ? 'GPS Tracking Siap' : 'Tunggu GPS Siap';
     }
   }
-  function startGpsWarmup(){
+  function startGpsWarmup(mode='ride'){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
+    mode = mode === 'walk' ? 'walk' : 'ride';
     if(warmup) stopGpsWarmup(false);
-    warmup = {watchId:null, start:Date.now(), fixes:0, bestAcc:999, last:null, ready:false, error:'', autoTimer:null};
-    openSheet(`${sheetTitle('GPS Tracking Check', 'Tunggu status GPS TRACKING SIAP sebelum jalan.')}
+    warmup = {watchId:null, start:Date.now(), fixes:0, bestAcc:999, last:null, ready:false, error:'', autoTimer:null, mode};
+    openSheet(`${sheetTitle('GPS Tracking Check', warmup.mode === 'walk' ? 'Mode test jalan kaki. Data tidak masuk KM motor.' : 'Mode Ride Motor. Macet/pelan tetap bisa dihitung kalau GPS valid.')}
       <div class="warmup-card">
-        <div class="warmup-top"><span class="gps-badge warn" id="warm-status">CEK GPS</span><span class="muted">jangan jalan dulu</span></div>
+        <div class="warmup-top"><span class="gps-badge warn" id="warm-status">CEK GPS</span><span class="muted">${warmup.mode === 'walk' ? 'test jalan kaki' : 'ride motor'}</span></div>
         <div class="warmup-accuracy" id="warm-accuracy">—</div>
         <div class="muted">akurasi lokasi</div>
         <div class="warmup-bar"><i id="warm-bar-fill" style="width:8%"></i></div>
@@ -994,7 +1001,7 @@
       </div>
       <div class="gps-rules">
         <b>Tips dashboard</b>
-        <small>Letakkan HP di dashboard atas/dekat kaca. Jangan gas dulu sebelum status siap, karena jarak sebelum GPS siap memang belum dihitung.</small>
+        <small>${warmup.mode === 'walk' ? 'Buat test, jalan pelan boleh. Hasilnya disimpan log saja.' : 'Letakkan HP di dashboard atas/dekat kaca. Kalau macet/merayap, mode Ride tetap menghitung gerak valid.'}</small>
       </div>
       <div class="form-actions"><button class="cancel-btn" data-action="warmup-cancel">Batal</button><button class="cancel-btn" data-action="warmup-force">Low Signal</button><button class="save-btn" id="warm-start-btn" data-action="warmup-start" disabled>Tunggu GPS Siap</button></div>`);
     warmup.watchId = navigator.geolocation.watchPosition(pos => {
@@ -1021,22 +1028,25 @@
   }
   function beginTrackerFromWarmup(force=false){
     const hadFix = warmup?.last || null;
+    const mode = warmup?.mode || 'ride';
     if(warmup?.watchId != null){ try{ navigator.geolocation.clearWatch(warmup.watchId); }catch{} }
     if(warmup?.autoTimer){ clearTimeout(warmup.autoTimer); }
     warmup = null;
-    startTracker(!!force, hadFix);
+    startTracker(!!force, hadFix, mode);
   }
-  function renderTrackingSheet(forceStart=false){
-    openSheet(`${sheetTitle('NGR Ride Tracking', forceStart ? 'Low Signal Mode aktif. Jarak tetap difilter ketat.' : 'GPS TRACKING SIAP — jalan sekarang.')}
+  function renderTrackingSheet(forceStart=false, mode='ride'){
+    const isWalk = mode === 'walk';
+    const modeLabel = isWalk ? 'Test Jalan Kaki' : 'Ride Motor';
+    openSheet(`${sheetTitle('NGR Ride Tracking', isWalk ? 'Mode test jalan kaki aktif.' : (forceStart ? 'Low Signal Mode aktif. Sensitivitas dashboard.' : 'GPS TRACKING SIAP — jalan sekarang.'))}
       <div class="tracker-card">
-        <div class="tracker-status-row"><span class="gps-badge" id="trk-mode">${forceStart ? 'Low Signal' : 'GPS Tracking Siap'}</span><span class="muted">jarak valid-only</span></div>
+        <div class="tracker-status-row"><span class="gps-badge" id="trk-mode">${isWalk ? 'Walk Test' : (forceStart ? 'Low Signal' : 'Ride Siap')}</span><span class="muted">${modeLabel}</span></div>
         <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer</div></div>
         <div class="tracker-meta"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div></div>
-        <p class="tracker-map-note" id="trk-gps-note">${forceStart ? 'Low signal mode: tunggu gerakan valid, drift tetap diabaikan.' : 'GPS TRACKING SIAP — jalan sekarang. NGR mulai hitung setelah gerakan valid terkonfirmasi.'}</p>
+        <p class="tracker-map-note" id="trk-gps-note">${isWalk ? 'Mode Test Jalan Kaki: gerak pelan kebaca, tapi tidak masuk Virtual KM motor.' : (forceStart ? 'Low signal mode: tunggu gerakan valid, drift tetap diabaikan.' : 'Mode Ride Motor: jalan pelan/macet tetap dihitung setelah GPS valid terkonfirmasi.')}</p>
       </div>
       <div class="gps-rules">
-        <b>Stable Mode aktif</b>
-        <small>Kalau kamu berhenti/kasir/kasur, GPS drift tidak dihitung. Setelah Stop, hasil ride baru direview.</small>
+        <b>${isWalk ? 'Walk Test aktif' : 'Ride Mode aktif'}</b>
+        <small>${isWalk ? 'Cocok buat cek GPS sambil jalan kaki. Hasil default log saja.' : 'Kalau diam/kasir/kasur, drift tetap ditahan. Kalau macet/merayap, gerakan valid tetap dihitung.'}</small>
       </div>
       <div class="pulse-grid" id="trk-pulse" style="display:none"></div>
       <input id="ride-photo" type="file" accept="image/*" capture="environment" hidden />
@@ -1062,11 +1072,36 @@
   }
   function rawSpeedKmh(coords){ return coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : NaN; }
   function movementGate(ref,p,d,dt,speedKmh,raw){
-    const need = gpsNoiseMeters(ref,p);
-    const hasSpeed = (Number.isFinite(raw) && raw >= 7) || speedKmh >= 8;
+    const mode = tracker?.mode === 'walk' ? 'walk' : 'ride';
     const saneTime = dt > 0.8 && dt < 45;
-    const accLimit = tracker?.forceStart ? 55 : 35;
-    return p.acc <= accLimit && d >= need && hasSpeed && saneTime && speedKmh < 115;
+    if(!saneTime || speedKmh >= 125) return false;
+    const accLimit = mode === 'walk' ? (tracker?.forceStart ? 85 : 70) : (tracker?.forceStart ? 78 : 58);
+    if(p.acc > accLimit) return false;
+    const accA = Math.min(80, Math.max(0, safeNum(ref?.acc || 0)));
+    const accB = Math.min(80, Math.max(0, safeNum(p?.acc || 0)));
+    const need = mode === 'walk'
+      ? clamp(Math.max(4, (accA + accB) * .16), 4, 16)
+      : clamp(Math.max(6, (accA + accB) * .20), 6, 22);
+    const rawOk = Number.isFinite(raw) && raw >= (mode === 'walk' ? 1.2 : 2.0);
+    const derivedOk = speedKmh >= (mode === 'walk' ? 1.8 : 2.4) && d >= (mode === 'walk' ? 3 : 4);
+    const distanceOk = d >= need;
+    return (rawOk || derivedOk || distanceOk) && d >= (mode === 'walk' ? 2.5 : 3.5);
+  }
+  function movementCandidate(ref,p,d,dt,speedKmh,raw){
+    const mode = tracker?.mode === 'walk' ? 'walk' : 'ride';
+    const saneTime = dt > 0.8 && dt < 45;
+    const accLimit = mode === 'walk' ? (tracker?.forceStart ? 95 : 78) : (tracker?.forceStart ? 88 : 68);
+    if(!saneTime || p.acc > accLimit || speedKmh >= 125) return false;
+    const rawOk = Number.isFinite(raw) && raw >= (mode === 'walk' ? 1.0 : 1.8);
+    const derivedOk = speedKmh >= (mode === 'walk' ? 1.4 : 2.0) && d >= (mode === 'walk' ? 2.2 : 3.0);
+    const distanceOk = d >= (mode === 'walk' ? 3.8 : 5.0);
+    return rawOk || derivedOk || distanceOk;
+  }
+  function pendingPathMeters(anchor, list){
+    if(!anchor || !list?.length) return 0;
+    let total = 0, prev = anchor;
+    for(const pt of list){ total += haversine(prev, pt); prev = pt; }
+    return total;
   }
   function addAcceptedPoint(p, ref, d, dt, speedKmh){
     const prev = tracker.lastAccepted;
@@ -1085,27 +1120,29 @@
     tracker.anchor = p;
     tracker.route.push(p);
     tracker.pending = [];
-    tracker.gpsNote = `Moving · GPS ±${Math.round(p.acc)}m · +${Math.round(prev ? d : 0)}m`;
+    tracker.gpsNote = `${tracker.mode === 'walk' ? 'Walk Test' : 'Ride Moving'} · GPS ±${Math.round(p.acc)}m · +${Math.round(prev ? d : 0)}m`;
     return true;
   }
   function ignoreAsDrift(p, reason='Indoor drift ignored'){
     tracker.ignored++;
     tracker.currentSpeed = 0;
+    const prevRaw = tracker.lastRaw;
+    if(tracker.lastAccepted && prevRaw) tracker.stopMs += Math.max(0, p.ts - prevRaw.ts);
     tracker.lastRaw = p;
-    if(tracker.lastAccepted) tracker.stopMs += Math.max(0, p.ts - (tracker.lastRaw?.ts || p.ts));
-    if(!tracker.lastAccepted && p.acc <= 45) tracker.anchor = p;
+    if(!tracker.lastAccepted && p.acc <= (tracker.mode === 'walk' ? 60 : 45)) tracker.anchor = p;
     tracker.gpsNote = `${reason} · ±${Math.round(p.acc)}m`;
   }
-  function startTracker(forceStart=false, warmFix=null){
+  function startTracker(forceStart=false, warmFix=null, mode='ride'){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
-    renderTrackingSheet(forceStart);
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, stopMs:0, gpsNote:forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'GPS TRACKING SIAP — jalan sekarang', route:[], checkpoints:[], tick:null, forceStart:!!forceStart};
+    mode = mode === 'walk' ? 'walk' : 'ride';
+    renderTrackingSheet(forceStart, mode);
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · macet/pelan tetap dihitung'), route:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
       const c = pos.coords;
       const raw = rawSpeedKmh(c);
       const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:0, rawSpeedKmh:raw, seg:'normal'};
-      const maxAcc = tracker.forceStart ? 95 : 65;
+      const maxAcc = tracker.mode === 'walk' ? (tracker.forceStart ? 110 : 85) : (tracker.forceStart ? 100 : 75);
       if(p.acc > maxAcc){ tracker.bad++; tracker.lastRaw = p; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), tunggu sinyal stabil`; updateTrackerUI(); return; }
       if(!tracker.anchor){ tracker.anchor = p; tracker.lastRaw = p; tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m · belum hitung jarak`; updateTrackerUI(); return; }
 
@@ -1116,7 +1153,32 @@
       const speedKmh = Number.isFinite(raw) && raw > 1 ? raw : derivedSpeed;
 
       if(!movementGate(ref, p, d, dt, speedKmh, raw)){
-        const why = tracker.lastAccepted ? `Idle / drift ${Math.round(d)}m diabaikan` : `Indoor drift ${Math.round(d)}m diabaikan`;
+        if(!tracker.lastAccepted && movementCandidate(ref, p, d, dt, speedKmh, raw)){
+          tracker.pending.push(p);
+          const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
+          tracker.gpsNote = `Gerak dashboard terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
+          const isWalkMode = tracker.mode === 'walk';
+          const enoughDistance = pendingMeters >= (isWalkMode ? 5 : (tracker.forceStart ? 7 : 8));
+          const enoughPoints = tracker.pending.length >= 2 && pendingMeters >= (isWalkMode ? 4 : 6);
+          const strongSpeed = speedKmh >= (isWalkMode ? 2.5 : 4) && d >= (isWalkMode ? 2.5 : 3);
+          if(enoughDistance || enoughPoints || strongSpeed){
+            const first = tracker.pending[0];
+            first.speedKmh = safeNum(first.speedKmh || first.rawSpeedKmh || 0); first.seg = 'normal';
+            tracker.lastAccepted = first; tracker.route.push(first); tracker.points++;
+            for(const nxt of tracker.pending.slice(1)){
+              const prev = tracker.lastAccepted;
+              const dd = haversine(prev, nxt);
+              const ddT = Math.max(.001, (nxt.ts - prev.ts)/1000);
+              const sp = Number.isFinite(nxt.rawSpeedKmh) && nxt.rawSpeedKmh > 1 ? nxt.rawSpeedKmh : (dd/ddT)*3.6;
+              if(dd >= 3 && sp < 115) addAcceptedPoint(nxt, prev, dd, ddT, sp);
+            }
+            tracker.gpsNote = 'Moving confirmed · jarak mulai dihitung';
+          }
+          tracker.lastRaw = p;
+          updateTrackerUI();
+          return;
+        }
+        const why = tracker.lastAccepted ? `Idle / drift ${Math.round(d)}m diabaikan` : `Belum gerak valid · drift ${Math.round(d)}m diabaikan`;
         ignoreAsDrift(p, why);
         updateTrackerUI();
         return;
@@ -1124,8 +1186,9 @@
 
       if(!tracker.lastAccepted){
         tracker.pending.push(p);
-        tracker.gpsNote = `Gerakan terdeteksi ${tracker.pending.length}/3 · konfirmasi dulu`;
-        if(tracker.pending.length >= 3 || d >= 85){
+        const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
+        tracker.gpsNote = `Gerakan terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
+        if(tracker.pending.length >= 2 || pendingMeters >= (tracker.mode === 'walk' ? 6 : 10) || d >= 45){
           const first = tracker.pending[0];
           first.speedKmh = 0; first.seg = 'normal';
           tracker.lastAccepted = first; tracker.route.push(first); tracker.points++;
@@ -1134,7 +1197,7 @@
             const dd = haversine(prev, nxt);
             const ddT = Math.max(.001, (nxt.ts - prev.ts)/1000);
             const sp = Number.isFinite(nxt.rawSpeedKmh) && nxt.rawSpeedKmh > 1 ? nxt.rawSpeedKmh : (dd/ddT)*3.6;
-            addAcceptedPoint(nxt, prev, dd, ddT, sp);
+            if(dd >= 3 && sp < 115) addAcceptedPoint(nxt, prev, dd, ddT, sp);
           }
           tracker.gpsNote = 'Moving confirmed · jarak mulai dihitung';
         }
@@ -1143,7 +1206,7 @@
         return;
       }
 
-      const ok = d < 180 && speedKmh < 115 && p.acc <= 45;
+      const ok = d < 180 && speedKmh < 115 && p.acc <= (tracker.forceStart ? 70 : 55) && d >= 3;
       if(ok) addAcceptedPoint(p, tracker.lastAccepted, d, dt, speedKmh);
       else { tracker.bad++; ignoreAsDrift(p, d >= 180 ? 'GPS loncat dibuang' : 'GPS kurang stabil'); }
       tracker.lastRaw = p;
@@ -1166,7 +1229,7 @@
     const badge = el('trk-mode');
     if(badge){
       const moving = tracker.currentSpeed > 6 && tracker.distance > 0;
-      badge.textContent = tracker.paused ? 'Paused' : moving ? 'Moving' : tracker.lastAccepted ? 'Idle Lock' : (tracker.anchor && !tracker.forceStart ? 'GPS Siap' : 'Searching GPS');
+      badge.textContent = tracker.paused ? 'Paused' : moving ? (tracker.mode === 'walk' ? 'Walk Moving' : 'Ride Moving') : tracker.lastAccepted ? (tracker.mode === 'walk' ? 'Walk Idle' : 'Macet/Idle') : (tracker.anchor && !tracker.forceStart ? (tracker.mode === 'walk' ? 'Walk Ready' : 'Ride Ready') : 'Searching GPS');
       badge.className = 'gps-badge' + (tracker.bad > tracker.points ? ' danger' : tracker.ignored ? ' warn' : '');
     }
     const pulse = computeRidePulse(tracker.route, km, dur, tracker.maxSpeed, tracker.stopMs);
@@ -1190,13 +1253,14 @@
   function stopTracker(){
     if(!tracker) return; if(tracker.watchId != null) navigator.geolocation.clearWatch(tracker.watchId); clearInterval(tracker.tick);
     const dur=trackerDuration(), km=tracker.distance/1000, avg=trackerAvgSpeed(), max=tracker.maxSpeed;
+    const mode = tracker.mode || 'ride';
     const badRatio = tracker.bad / Math.max(1, tracker.bad + tracker.points); let detect='Suspicious', msg='Data agak nanggung, review dulu sebelum masuk KM.';
-    if(km < .05 && max < 10){ detect='No Movement'; msg='Kayaknya kamu masih diam. Jarak tidak masuk Virtual KM kecuali kamu paksa simpan.'; }
+    if(mode === 'walk'){ detect='Walk Test'; msg='Ini mode test jalan kaki. Disimpan sebagai log GPS saja, tidak masuk Virtual KM motor.'; }
+    else if(km < .05 && max < 10){ detect='No Movement'; msg='Kayaknya kamu masih diam. Jarak tidak masuk Virtual KM kecuali kamu paksa simpan.'; }
     else if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
-    else if(avg < 8 && max < 15){ detect='Looks Like Walking'; msg='Bos, ini kelihatan kayak jalan kaki/jogging. Jangan masukin ke KM motor dulu?'; }
-    else if((avg >= 12 || max >= 20) && km >= .2){ detect='Motor Ride'; msg='Trip terlihat seperti ride motor. Aman buat masuk Virtual KM.'; }
+    else if(km >= .05){ detect='Motor Ride'; msg='Mode Ride aktif. Macet/pelan tetap dianggap perjalanan motor kalau GPS valid.'; }
     const route = simplifyRoute(tracker.route, 450); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max, tracker.stopMs);
-    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, ts:Date.now(), name:'Ride '+fmt.date(Date.now())}; tracker = null;
+    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, mode, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : 'Ride ')+fmt.date(Date.now())}; tracker = null;
     openSheet(`${sheetTitle('Review Ride Lite', 'KM belum masuk sebelum kamu simpan.')}
       <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer valid</div></div>
       <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg valid</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
@@ -1204,12 +1268,13 @@
       <div class="warning-box"><b>${detect}</b><br>${msg}<br><br><b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.</div>
       ${renderRideSummaryMapShell('ride-review-map', route, checkpoints)}
       ${checkpointStripHtml(checkpoints)}
-      <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">Log saja</button><button class="save-btn" data-action="save-ride-km">Simpan KM</button></div>`);
+      <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">${mode === 'walk' ? 'Simpan Test' : 'Log saja'}</button>${mode === 'walk' ? '' : '<button class="save-btn" data-action="save-ride-km">Simpan KM</button>'}</div>`);
     sheet._rideSummary = summary;
     setTimeout(() => renderRideSummaryMap('ride-review-map', route, checkpoints), 80);
   }
   function saveRide(toKm){
     const r = sheet._rideSummary; if(!r) return closeSheet();
+    if(r.mode === 'walk' && toKm){ toKm = false; toast('Mode jalan kaki disimpan log saja'); }
     r.id = uid(); r.savedToKm = !!toKm; state.rides.unshift(r);
     (r.checkpoints||[]).forEach((c,idx)=>state.places.unshift({id:uid(), name:c.name || `Checkpoint ${idx+1}`, lat:c.lat, lon:c.lon, photo:c.photo, note:`Dari ${r.name || 'Ride'}`, ts:c.ts || r.ts, rideId:r.id}));
     if(toKm){ state.profile.virtualKm += r.distance; state.fuelState.liters = Math.max(0, state.fuelState.liters - (r.distance / (state.fuelState.kmPerLiter || 55))); }
@@ -1452,7 +1517,7 @@
       'save-style': saveStyle,
       'save-link': saveLink,
       'save-expense': saveExpense,
-      'tracker-start': startGpsWarmup,
+      'tracker-start': () => startGpsWarmup(getPickerValue('ride-mode-picker') || 'ride'),
       'tracker-pause': pauseTracker,
       'tracker-stop': stopTracker,
       'warmup-start': () => beginTrackerFromWarmup(false),
