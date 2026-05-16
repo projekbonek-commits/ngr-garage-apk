@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="NGR" />
-  <title>NGR Health Garage</title>
+  <title>NGR Smart Garage OS</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" href="icon-192.png" />
   <link rel="apple-touch-icon" href="icon-192.png" />
@@ -22,7 +22,7 @@
       <div class="brand">
         <img src="icon-192.png" alt="NGR" class="brand-logo" />
         <div>
-          <div class="brand-name">NGR Health</div>
+          <div class="brand-name">NGR OS</div>
           <div class="brand-sub" id="brand-sub">Honda Beat FI 2014</div>
         </div>
       </div>
@@ -37,7 +37,7 @@
           <div class="hero-card reveal">
             <div class="hero-top">
               <div>
-                <p class="eyebrow">NGR HEALTH DASHBOARD</p>
+                <p class="eyebrow">NGR SMART GARAGE OS</p>
                 <h1 id="home-bike-name">Honda Beat FI 2014</h1>
                 <p class="muted"><span id="home-bike-meta">Virtual Odometer aktif</span></p>
               </div>
@@ -62,6 +62,16 @@
             </div>
           </div>
 
+          <section class="os-strip reveal delay-1" id="home-os-strip"></section>
+
+          <section class="panel reveal delay-1 os-reco-panel">
+            <div class="panel-head slim">
+              <div><h2>Smart Recommendations</h2><p>Saran otomatis dari health, ride, fuel, dan budget.</p></div>
+              <button class="mini-link" data-go="garage" data-garage-tab="expense">Timeline</button>
+            </div>
+            <div class="reco-list" id="smart-recommendations"></div>
+          </section>
+
           <div class="quick-row reveal delay-1">
             <button class="quick-card go" id="quick-ride"><span data-icon="ride"></span><b>GO Ride</b><small>GPS Lite</small></button>
             <button class="quick-card" data-action="quick-fuel"><span data-icon="fuel"></span><b>Fuel</b><small>Shortcut</small></button>
@@ -74,6 +84,13 @@
               <button class="mini-link" data-go="garage">Garage</button>
             </div>
             <div class="priority-list" id="priority-list"></div>
+          </section>
+
+          <section class="panel reveal delay-2">
+            <div class="panel-head slim">
+              <div><h2>Health 2.0 Breakdown</h2><p>Gabungan service, bike check, fuel, ride style, dan budget.</p></div>
+            </div>
+            <div class="health-breakdown" id="health-breakdown"></div>
           </section>
 
           <section class="panel reveal delay-3">
@@ -118,6 +135,13 @@
             <button data-garage-tab="style">Style</button>
             <button data-garage-tab="expense">Expense</button>
           </div>
+
+          <section class="panel os-command reveal delay-2">
+            <div class="panel-head slim">
+              <div><h2>Garage Command Center</h2><p>Timeline, budget, dan rekomendasi jadi satu.</p></div>
+            </div>
+            <div class="garage-command-grid" id="garage-command-grid"></div>
+          </section>
 
           <div id="garage-service" class="garage-pane active">
             <div class="panel reveal delay-2">
@@ -187,9 +211,16 @@
               <div class="expense-card"><small>Modif</small><b id="exp-modif">Rp 0</b></div>
               <div class="expense-card wide"><small>Biaya / KM</small><b id="exp-cost-km">Rp 0/km</b></div>
             </div>
+            <section class="panel budget-panel">
+              <div class="panel-head slim">
+                <div><h2>Budget Control</h2><p>Service wajib dulu, modif tetap aman.</p></div>
+              </div>
+              <div class="budget-grid" id="budget-control"></div>
+            </section>
+
             <div class="panel">
               <div class="panel-head">
-                <div><h2>Expense & History</h2><p>Semua pengeluaran detail masuk sini.</p></div>
+                <div><h2>Garage Timeline OS</h2><p>Ride, fuel, service, modif, foto, dan expense satu garis waktu.</p></div>
                 <button class="pill-btn" data-action="expense">+ Expense</button>
               </div>
               <div class="utility-row">
@@ -229,6 +260,13 @@
           </div>
 
           <section class="panel reveal delay-3">
+            <div class="panel-head slim">
+              <div><h2>Ride Report Premium</h2><p>Fuel stress, smooth score, dan dampak ke komponen.</p></div>
+            </div>
+            <div class="ride-report-mini" id="ride-report-mini"></div>
+          </section>
+
+          <section class="panel reveal delay-3">
             <div class="panel-head">
               <div><h2>Ride History</h2><p>Riwayat ride, summary map, Ride Pulse, dan foto checkpoint.</p></div>
               <button class="pill-btn" data-action="ride">+ Ride</button>
@@ -263,6 +301,13 @@
               <div><b id="fuel-spend-month">Rp 0</b><small>bulan ini</small></div>
             </div>
           </div>
+
+          <section class="panel reveal delay-2">
+            <div class="panel-head slim">
+              <div><h2>Fuel Intelligence 2.0</h2><p>Kalibrasi dari fuel log + ride log.</p></div>
+            </div>
+            <div class="fuel-intel-grid" id="fuel-intel-grid"></div>
+          </section>
 
           <section class="panel reveal delay-2">
             <div class="panel-head">

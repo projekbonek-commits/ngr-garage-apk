@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 3.7;
+  const VERSION = 4.0;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -236,10 +236,149 @@
   function statusLabel(s){ return {ok:'Healthy', warn:'Need Check', danger:'Urgent'}[s] || 'Unknown'; }
   function partStatusLabel(s){ return {ok:'Aman', check:'Perlu Cek', worn:'Aus/Lemah', broken:'Rusak', replaced:'Diganti', modif:'Modif', wishlist:'Wishlist'}[s] || s; }
   function healthScore(){
+    const b = healthBreakdown();
+    return b.score;
+  }
+  function avg(arr, fallback=100){ return arr && arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : fallback; }
+  function monthExpenses(category=null){
+    return (state.expenses || []).filter(e => (!category || e.category === category) && monthFilter(e.ts)).reduce((a,b)=>a+safeNum(b.amount),0);
+  }
+  function monthRideKm(){
+    return (state.rides || []).filter(r => monthFilter(r.ts) && r.savedToKm !== false).reduce((a,b)=>a+safeNum(b.distance),0);
+  }
+  function latestPulse(){
+    const rides = (state.rides || []).filter(r=>r.pulse);
+    if(!rides.length) return null;
+    const recent = rides.slice(0,8);
+    return {
+      smooth: Math.round(avg(recent.map(r=>safeNum(r.pulse.smoothScore)), 85)),
+      stress: Math.round(avg(recent.map(r=>safeNum(r.pulse.fuelStress)), 18)),
+      spikes: recent.reduce((a,b)=>a+safeNum(b.pulse.hardAccel),0),
+      fuelLiters: recent.reduce((a,b)=>a+safeNum(b.pulse.fuelLiters),0)
+    };
+  }
+  function healthBreakdown(){
     const svc = state.serviceComponents.map(serviceHealth).map(x=>x.pct);
     const chk = state.bikeChecks.map(checkHealth).map(x=>x.pct);
-    const avg = arr => arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : 100;
-    return Math.round(avg(svc)*0.62 + avg(chk)*0.28 + fuelHealth().pct*0.10);
+    const fuel = fuelHealth().pct;
+    const pulse = latestPulse();
+    const ride = pulse ? clamp(Math.round(pulse.smooth*.68 + (100-pulse.stress)*.32),0,100) : 88;
+    const urgentCount = priorityItems(99).filter(x=>x.tone==='danger').length;
+    const monthSpend = monthExpenses();
+    const serviceNeed = state.serviceComponents.map(c=>serviceHealth(c)).filter(h=>h.pct<55).length;
+    const budget = clamp(Math.round(100 - (monthSpend/800000*28) - serviceNeed*5 - urgentCount*8),35,100);
+    const score = Math.round(avg(svc)*0.45 + avg(chk)*0.22 + fuel*0.16 + ride*0.10 + budget*0.07);
+    return {score, service:Math.round(avg(svc)), check:Math.round(avg(chk)), fuel, ride, budget, pulse, urgentCount, monthSpend, serviceNeed};
+  }
+  function renderMetricCard(label, value, sub, tone='ok'){
+    return `<div class="os-metric ${tone}"><small>${esc(label)}</small><b>${esc(String(value))}</b><em>${esc(sub || '')}</em></div>`;
+  }
+  function buildSmartRecommendations(limit=5){
+    const list = [];
+    const top = priorityItems(3);
+    if(top[0] && top[0].pct < 75) list.push({tone:top[0].tone, icon:top[0].icon, title:`Prioritas: ${top[0].name}`, sub:`${top[0].kind} · ${top[0].pct}% healthy · ${top[0].sub}`, action:top[0].go});
+    const pulse = latestPulse();
+    if(pulse && pulse.stress >= 55) list.push({tone:'warn', icon:'ride', title:'Riding agak boros', sub:`Fuel Stress rata-rata ${pulse.stress}/100. Gas lebih smooth biar fuel turun.`, action:'ride'});
+    if(pulse && pulse.smooth < 70) list.push({tone:'warn', icon:'speed', title:'Smooth score perlu naik', sub:`Rata-rata smooth ${pulse.smooth}%. Hindari stop-go dan speed spike.`, action:'ride'});
+    const fuel = fuelHealth();
+    if(fuel.pct < 88) list.push({tone:fuel.status, icon:'fuel', title:'Pantau konsumsi BBM', sub:`Saat ini ${Math.round(state.fuelState.kmPerLiter || 0)} km/L. Bandingkan dengan ride log.`, action:'fuel'});
+    const urgent = state.serviceComponents.map(c=>({c,h:serviceHealth(c)})).filter(x=>x.h.pct<25).sort((a,b)=>a.h.pct-b.h.pct)[0];
+    if(urgent) list.push({tone:'danger', icon:urgent.c.icon, title:`Jangan modif dulu: ${urgent.c.name}`, sub:`Estimasi service ${fmt.rp(urgent.c.estimate)} lebih prioritas dari wishlist.`, action:'garage'});
+    const monthSpend = monthExpenses();
+    if(monthSpend > 500000) list.push({tone:'warn', icon:'money', title:'Budget bulan ini mulai tinggi', sub:`Total ${fmt.rp(monthSpend)}. Cek expense sebelum beli part baru.`, action:'expense'});
+    if(!state.rides.length) list.push({tone:'ok', icon:'ride', title:'Mulai Ride Report', sub:'Coba GO Ride pendek buat kalibrasi fuel dan smooth score.', action:'ride'});
+    if(!list.length) list.push({tone:'ok', icon:'garage', title:'Beat aman', sub:'Data sehat. Tetap update KM, fuel, bike check, dan backup berkala.', action:'home'});
+    return list.slice(0, limit);
+  }
+  function renderSmartRecommendations(targetId='smart-recommendations'){
+    const box = el(targetId); if(!box) return;
+    box.innerHTML = buildSmartRecommendations().map(r => `<button class="reco-card ${r.tone}" data-go="${r.action==='fuel'?'fuel':r.action==='ride'?'ride':'garage'}" ${r.action==='expense'? 'data-garage-tab="expense"' : r.action==='garage'? 'data-garage-tab="service"' : ''}><span class="row-icon" data-icon="${r.icon}"></span><span><b>${esc(r.title)}</b><small>${esc(r.sub)}</small></span></button>`).join('');
+    renderIconsLater(box);
+  }
+  function renderHealthBreakdown(){
+    const box = el('health-breakdown'); if(!box) return;
+    const b = healthBreakdown();
+    const rows = [
+      ['Service', b.service, `${state.serviceComponents.length} komponen`, 'wrench'],
+      ['Bike Check', b.check, `${state.bikeChecks.filter(p=>p.status!=='ok').length} part perlu cek`, 'brake'],
+      ['Fuel', b.fuel, `${Math.round(state.fuelState.kmPerLiter || 0)} km/L`, 'fuel'],
+      ['Ride Style', b.ride, b.pulse ? `Smooth ${b.pulse.smooth}% · Stress ${b.pulse.stress}` : 'belum ada ride', 'ride'],
+      ['Budget', b.budget, `${fmt.rp(b.monthSpend)} bulan ini`, 'money']
+    ];
+    box.innerHTML = rows.map(([name,pct,sub,icon])=>`<div class="break-card"><span class="row-icon" data-icon="${icon}"></span><span><b>${name}</b><small>${esc(sub)}</small></span>${ringHtml(pct)}</div>`).join('');
+    renderIconsLater(box);
+  }
+  function renderHomeOsStrip(){
+    const box = el('home-os-strip'); if(!box) return;
+    const b = healthBreakdown();
+    const rideKm = monthRideKm();
+    const costKm = rideKm ? monthExpenses()/rideKm : 0;
+    box.innerHTML = [
+      renderMetricCard('Health 2.0', b.score+'%', b.urgentCount ? `${b.urgentCount} urgent` : 'smart score', b.score<55?'danger':b.score<78?'warn':'ok'),
+      renderMetricCard('Bulan Ini', fmt.rp(b.monthSpend), rideKm ? `${fmt.rp(costKm)}/km` : 'belum ada ride', 'ok'),
+      renderMetricCard('Fuel Real', Math.round(state.fuelState.kmPerLiter||0)+' km/L', `${fmt.liter(state.fuelState.liters)} tersisa`, b.fuel<70?'warn':'ok')
+    ].join('');
+  }
+  function smartTimeline(limit=50){
+    const base = getTimeline(limit);
+    const svc = state.serviceComponents.flatMap(c => (c.history||[]).map(h=>({type:'Service', title:c.name, amount:h.cost?fmt.rp(h.cost):'', ts:h.ts||Date.now(), icon:c.icon, sub:`${fmt.km(h.km||c.lastKm)} · ${h.brand||'service log'}`})));
+    const mod = state.mods.map(m=>({type:'Modif', title:m.name, amount:m.price?fmt.rp(m.price):'', ts:m.ts, icon:'star', sub:m.status||'wishlist'}));
+    const styles = state.styles.map(x=>({type:'Style', title:x.name, amount:x.budget?fmt.rp(x.budget):'', ts:x.ts, icon:'star', sub:x.status||'ide'}));
+    const places = (state.places||[]).map(p=>({type:'Place', title:p.name||'Location Memory', amount:'', ts:p.ts, icon:'pin', sub:p.note||'spot tersimpan'}));
+    return [...base, ...svc, ...mod, ...styles, ...places].sort((a,b)=>b.ts-a.ts).slice(0,limit);
+  }
+  function renderGarageCommand(){
+    const box = el('garage-command-grid'); if(!box) return;
+    const b = healthBreakdown(); const rideKm = monthRideKm(); const spend = monthExpenses();
+    const urgent = priorityItems(1)[0];
+    box.innerHTML = `
+      ${renderMetricCard('OS Score', b.score+'%', urgent ? urgent.name : 'all good', b.score<55?'danger':b.score<78?'warn':'ok')}
+      ${renderMetricCard('Cost / KM', rideKm?fmt.rp(spend/rideKm)+'/km':'—', `${fmt.km(rideKm)} bulan ini`, 'ok')}
+      ${renderMetricCard('Next Action', urgent?urgent.pct+'%':'Aman', urgent?urgent.sub:'tidak ada urgent', urgent?.tone || 'ok')}`;
+  }
+  function renderBudgetControl(){
+    const box = el('budget-control'); if(!box) return;
+    const spend = monthExpenses(); const fuel = monthExpenses('Fuel'); const service = monthExpenses('Service'); const modif = monthExpenses('Modif');
+    const urgentCost = state.serviceComponents.map(c=>({c,h:serviceHealth(c)})).filter(x=>x.h.pct<55).reduce((a,x)=>a+safeNum(x.c.estimate),0);
+    const target = safeNum(state.savings.target); const collected = safeNum(state.savings.collected); const left = Math.max(0,target-collected);
+    const mode = urgentCost > 0 ? 'Service dulu' : left > 0 ? 'Modif aman dicicil' : 'Budget aman';
+    box.innerHTML = `
+      ${renderMetricCard('Total Bulan Ini', fmt.rp(spend), `Fuel ${fmt.rp(fuel)} · Service ${fmt.rp(service)}`, spend>600000?'warn':'ok')}
+      ${renderMetricCard('Service Wajib', fmt.rp(urgentCost), urgentCost?'prioritas sebelum modif':'tidak ada urgent', urgentCost?'danger':'ok')}
+      ${renderMetricCard('Celengan', fmt.rp(collected), left?`kurang ${fmt.rp(left)}`:'target tercapai', left?'warn':'ok')}
+      <div class="budget-advice"><b>${mode}</b><small>${urgentCost?`Siapkan minimal ${fmt.rp(urgentCost)} buat komponen soon/urgent.`:'Kalau mau beli part, tetap sisihin dana fuel dan service.'}</small></div>`;
+  }
+  function fuelIntelStats(){
+    const ridesKm = (state.rides||[]).slice(0,20).reduce((a,b)=>a+safeNum(b.distance),0);
+    const fuelLiters = (state.fuels||[]).slice(0,20).reduce((a,b)=>a+safeNum(b.liters),0);
+    const realKml = fuelLiters>0 && ridesKm>0 ? ridesKm/fuelLiters : safeNum(state.fuelState.kmPerLiter)||55;
+    const pulse = latestPulse();
+    const weeklyKm = monthRideKm()/Math.max(1,(new Date().getDate()/7));
+    const weeklyFuelCost = weeklyKm / Math.max(1,realKml) * (state.fuelSettings?.prices?.pertalite || 10000);
+    return {realKml, ridesKm, fuelLiters, pulse, weeklyFuelCost};
+  }
+  function renderFuelIntel(){
+    const box = el('fuel-intel-grid'); if(!box) return;
+    const f = fuelIntelStats();
+    const stress = f.pulse ? f.pulse.stress : 0;
+    box.innerHTML = `
+      ${renderMetricCard('Real Avg', Math.round(f.realKml)+' km/L', `${fmt.km(f.ridesKm)} / ${fmt.liter(f.fuelLiters)}`, f.realKml<42?'warn':'ok')}
+      ${renderMetricCard('Prediksi Mingguan', fmt.rp(f.weeklyFuelCost), 'berdasar ride bulan ini', 'ok')}
+      ${renderMetricCard('Fuel Stress', f.pulse?stress+'/100':'—', f.pulse?`Smooth ${f.pulse.smooth}%`:'butuh ride log', stress>60?'warn':'ok')}`;
+  }
+  function componentWearHtml(r){
+    const d = safeNum(r.distance); const stress = safeNum(r.pulse?.fuelStress);
+    const oil = Math.min(5, d/20 + stress/140);
+    const tire = Math.min(5, d/35 + stress/180);
+    const cvt = Math.min(5, d/45 + stress/160);
+    return `<div class="wear-grid"><div><b>-${oil.toFixed(1)}%</b><small>Oli impact</small></div><div><b>-${tire.toFixed(1)}%</b><small>Ban impact</small></div><div><b>-${cvt.toFixed(1)}%</b><small>CVT impact</small></div></div>`;
+  }
+  function renderRideReportMini(){
+    const box = el('ride-report-mini'); if(!box) return;
+    const r = (state.rides||[])[0];
+    if(!r){ box.innerHTML = '<div class="empty">Belum ada ride report. Tap GO Ride buat bikin report pertama.</div>'; return; }
+    const p = r.pulse || computeRidePulse(r.route||[], r.distance, r.durationMs, r.maxSpeed);
+    box.innerHTML = `<div class="ride-report-card"><div><b>${esc(r.name||'Ride terakhir')}</b><small>${fmt.km(r.distance)} · ${fmt.min(r.durationMs)} · ${fmt.date(r.ts)}</small></div><div class="ride-pulse-strip"><div><b>${p.smoothScore}%</b><small>Smooth</small></div><div><b>${p.fuelStress}/100</b><small>Fuel Stress</small></div><div><b>${fmt.liter(p.fuelLiters)}</b><small>Fuel est.</small></div></div>${componentWearHtml({...r,pulse:p})}</div>`;
   }
   function ringHtml(pct, cls=''){
     return `<div class="health-ring ${cls}" style="--pct:${pct};--ring:${colorFromPct(pct)}"><span>${pct}%</span></div>`;
@@ -323,8 +462,11 @@
       </button>`).join('') || `<div class="empty">Belum ada data komponen.</div>`;
     renderIconsLater(el('home-components'));
     renderPriorityList();
+    renderHomeOsStrip();
+    renderHealthBreakdown();
+    renderSmartRecommendations();
     el('ai-insight').innerHTML = generateInsight();
-    renderTimeline(el('home-timeline'), getTimeline(5));
+    renderTimeline(el('home-timeline'), smartTimeline(6));
   }
   function componentSub(h){
     const km = h.kmLeft == null ? '' : (h.kmLeft < 0 ? `${fmt.km(Math.abs(h.kmLeft))} lewat` : `${fmt.km(h.kmLeft)} left`);
@@ -332,10 +474,12 @@
     return [km,d].filter(Boolean).join(' / ');
   }
   function generateInsight(){
+    const rec = buildSmartRecommendations(1)[0];
     const top = priorityItems(1)[0];
     const worstSvc = state.serviceComponents.map(c=>({c,h:serviceHealth(c)})).sort((a,b)=>a.h.pct-b.h.pct)[0];
     const badPart = state.bikeChecks.find(p=>['broken','worn','check'].includes(p.status));
     const fuel = fuelHealth();
+    if(rec && rec.tone !== 'ok') return `Bos, Smart OS baca prioritas: <b>${esc(rec.title)}</b>. ${esc(rec.sub)}.`;
     if(top && top.score > 90) return `Bos, prioritas nomor satu sekarang <b>${esc(top.name)}</b>. Statusnya ${top.pct}% healthy, jangan ditunda kalau dipakai harian.`;
     if(worstSvc && worstSvc.h.pct <= 20) return `Bos, <b>${esc(worstSvc.c.name)}</b> sudah urgent. Prioritasin dulu, estimasi budget sekitar <b>${fmt.rp(worstSvc.c.estimate)}</b>.`;
     if(badPart) return `Bos, <b>${esc(badPart.name)}</b> statusnya <b>${partStatusLabel(badPart.status)}</b>. Masukin prioritas cek di Garage biar health naik.`;
@@ -345,6 +489,7 @@
   }
 
   function renderGarage(){
+    renderGarageCommand();
     const active = $('#garage-tabs button.active')?.dataset.garageTab || 'service';
     if(active==='service') renderServiceList();
     if(active==='check') renderCheckList();
@@ -418,10 +563,11 @@
     const month = state.expenses.filter(e=>monthFilter(e.ts));
     const sum = cat => month.filter(e=>cat==='all'||e.category===cat).reduce((a,b)=>a+safeNum(b.amount),0);
     el('exp-month').textContent = fmt.rp(sum('all')); el('exp-fuel').textContent = fmt.rp(sum('Fuel')); el('exp-service').textContent = fmt.rp(sum('Service')); el('exp-modif').textContent = fmt.rp(sum('Modif'));
-    const monthKm = state.rides.filter(r=>monthFilter(r.ts)).reduce((a,b)=>a+safeNum(b.distance),0);
-    const costPerKm = monthKm > 0 ? Math.round(sum('all') / monthKm) : 0;
+    const mKm = monthRideKm();
+    const costPerKm = mKm > 0 ? Math.round(sum('all') / mKm) : 0;
     const cpk = el('exp-cost-km'); if(cpk) cpk.textContent = costPerKm ? `${fmt.rp(costPerKm)}/km` : 'Belum ada ride';
-    renderTimeline(el('expense-list'), getTimeline(40));
+    renderBudgetControl();
+    renderTimeline(el('expense-list'), smartTimeline(60));
   }
   function renderTimeline(target, items){
     target.innerHTML = items.length ? items.map(t=>`<div class="timeline-item"><div class="row-icon" data-icon="${t.icon}"></div><div class="timeline-main"><b>${esc(t.title)}</b><small>${esc(t.sub || fmt.date(t.ts))}</small></div>${t.amount ? `<div class="timeline-amount">${esc(t.amount)}</div>` : ''}</div>`).join('') : `<div class="empty">Belum ada history.</div>`;
@@ -449,6 +595,7 @@
     if(rh){
       rh.innerHTML = rides.length ? rides.slice(0,12).map((r,i)=>rideCardHtml(r, i)).join('') : `<div class="empty">Belum ada ride. Tap GO Ride, lalu lihat Summary Map setelah Stop.</div>`;
     }
+    renderRideReportMini();
     const pl = el('place-list');
     if(pl){
       pl.innerHTML = places.length ? places.slice(0,12).map(placeCardHtml).join('') : `<div class="empty">Belum ada location memory. Tambah foto saat ride atau + Place manual.</div>`;
@@ -498,6 +645,7 @@
       return `<button class="fuel-btn" data-action="fuel-shortcut" data-fuel="${f.id}" data-liter="${l}"><b>${esc(f.name)}</b><strong>${l}L</strong><small>${fmt.rp(price)}</small></button>`;
     })).join('');
     el('fuel-log').innerHTML = state.fuels.length ? state.fuels.slice(0,30).map(f=>`<div class="timeline-item"><div class="row-icon" data-icon="fuel"></div><div class="timeline-main"><b>${esc(f.type)} · ${fmt.liter(f.liters)}</b><small>${fmt.date(f.ts)} · ${fmt.km(f.km)}</small></div><div class="timeline-amount">${fmt.rp(f.price)}</div></div>`).join('') : `<div class="empty">Belum ada riwayat fuel.</div>`;
+    renderFuelIntel();
     renderIconsLater(el('fuel-log'));
     drawFuelChart();
   }
@@ -1103,6 +1251,7 @@
       <div class="tracker-meta"><div><b>${fmt.km(r.distance)}</b><small>Jarak</small></div><div><b>${fmt.min(r.durationMs)}</b><small>Durasi</small></div><div><b>${Math.round(r.maxSpeed||0)}</b><small>Max km/j</small></div></div>
       ${renderRideSummaryMapShell('ride-detail-map', r.route||[], r.checkpoints||[])}
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
+      ${componentWearHtml({...r,pulse})}
       <div class="ai-insight">Kang Rusdi: ride ini ${pulse.fuelStress>65?'cukup boros karena banyak speed spike/stop-go':pulse.smoothScore>78?'halus dan cukup irit':'normal, masih bisa dibuat lebih smooth'}. Estimasi fuel ${fmt.liter(pulse.fuelLiters)} (${fmt.rp(pulse.fuelCost)}). Ini estimasi dari GPS, bukan ECU asli.</div>
       ${checkpointStripHtml(r.checkpoints||[])}
       <div class="form-actions"><button class="save-btn" data-action="close-sheet">Tutup</button></div>`);
@@ -1129,7 +1278,7 @@
   function appContext(){
     const worst = state.serviceComponents.map(c=>({name:c.name, health:serviceHealth(c).pct, left:componentSub(serviceHealth(c))})).sort((a,b)=>a.health-b.health).slice(0,5);
     const bad = state.bikeChecks.filter(p=>p.status!=='ok').slice(0,8).map(p=>`${p.name}: ${partStatusLabel(p.status)}`);
-    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Health: ${healthScore()}%. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia.`;
+    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Smart Garage OS Health 2.0: ${healthScore()}%. Smart recommendation: ${buildSmartRecommendations(1)[0]?.title || 'aman'}. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Budget bulan ini: ${fmt.rp(monthExpenses())}. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia. Jelaskan kalau analisis fuel/ride itu estimasi GPS, bukan ECU asli.`;
   }
   async function sendAI(){
     const input = el('ai-input'); const text = input.value.trim(); if(!text) return; if(!state.ai.key) return toast('Isi API Key dulu', 'err');

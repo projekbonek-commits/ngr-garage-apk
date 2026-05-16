@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v3-7-ride-summary-map';
+const CACHE_NAME = 'ngr-v4-smart-garage-os';
 const CORE_ASSETS = [
   './',
   './index.html',
