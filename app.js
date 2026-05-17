@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4.6;
+  const VERSION = 4.9;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -647,8 +647,78 @@
     el('fuel-log').innerHTML = state.fuels.length ? state.fuels.slice(0,30).map(f=>`<div class="timeline-item"><div class="row-icon" data-icon="fuel"></div><div class="timeline-main"><b>${esc(f.type)} · ${fmt.liter(f.liters)}</b><small>${fmt.date(f.ts)} · ${fmt.km(f.km)}</small></div><div class="timeline-amount">${fmt.rp(f.price)}</div></div>`).join('') : `<div class="empty">Belum ada riwayat fuel.</div>`;
     renderFuelIntel();
     renderIconsLater(el('fuel-log'));
+    drawFuelBalanceChart();
     drawFuelChart();
   }
+  function fuelUsageForRide(r){
+    if(!r || !r.savedToKm) return 0;
+    const explicit = safeNum(r.fuelDeducted);
+    if(explicit > 0) return explicit;
+    const pulse = safeNum(r?.pulse?.fuelLiters);
+    if(pulse > 0) return pulse;
+    const dist = safeNum(r.distance);
+    const kml = Math.max(1, safeNum(state.fuelState.kmPerLiter) || 55);
+    return dist > 0 ? dist / kml : 0;
+  }
+
+  function buildFuelBalanceEvents(){
+    const fills = (state.fuels || []).map(f => ({
+      kind:'fill',
+      ts:safeNum(f.ts) || Date.now(),
+      label:f.type || 'Fuel',
+      liters:safeNum(f.liters),
+      price:safeNum(f.price),
+      km:safeNum(f.km)
+    })).filter(e => e.liters > 0);
+    const rides = (state.rides || []).filter(r => r.savedToKm).map(r => ({
+      kind:'ride',
+      ts:safeNum(r.ts) || Date.now(),
+      label:r.name || (r.source === 'manual' ? 'Manual KM' : 'Ride'),
+      liters:fuelUsageForRide(r),
+      distance:safeNum(r.distance)
+    })).filter(e => e.liters > 0 || e.distance > 0);
+    const events = [...fills, ...rides].sort((a,b)=>a.ts-b.ts);
+    const net = events.reduce((sum,e)=>sum + (e.kind === 'fill' ? e.liters : -e.liters), 0);
+    let bal = Math.max(0, safeNum(state.fuelState.liters) - net);
+    return events.map(e => {
+      bal += e.kind === 'fill' ? e.liters : -e.liters;
+      bal = Math.max(0, bal);
+      return {...e, balance:bal};
+    });
+  }
+
+  function drawFuelBalanceChart(){
+    const canvas = el('fuel-balance-chart'); if(!canvas) return;
+    const ctx = canvas.getContext('2d'); const dpr = devicePixelRatio || 1; const rect = canvas.getBoundingClientRect();
+    const W = Math.max(1, rect.width), H = 170;
+    canvas.width = W*dpr; canvas.height = H*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H);
+    const all = buildFuelBalanceEvents();
+    const rows = all.slice(-18);
+    const pad = {l:32, r:12, t:14, b:28}; const cw = W-pad.l-pad.r, ch = H-pad.t-pad.b;
+    const maxTank = Math.max(safeNum(state.fuelState.tankSize)||4.2, ...rows.map(e=>e.balance), ...rows.map(e=>e.liters), 1);
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.fillStyle = 'rgba(255,255,255,.42)'; ctx.font = '10px Inter';
+    [0,.5,1].forEach(p=>{ const y = pad.t + ch*(1-p); ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(W-pad.r,y); ctx.stroke(); const val=(maxTank*p).toFixed(p===0?0:1); ctx.fillText(val+'L', 2, y+3); });
+    if(!rows.length){ ctx.fillStyle='rgba(255,255,255,.45)'; ctx.textAlign='center'; ctx.font='12px Inter'; ctx.fillText('Belum ada data fuel/ride', W/2, H/2); return; }
+    const step = cw / Math.max(rows.length-1,1);
+    const xFor = i => pad.l + i*step;
+    const yFor = v => pad.t + ch*(1 - clamp(v/maxTank,0,1));
+    rows.forEach((e,i)=>{
+      const x = xFor(i); const h = clamp((e.liters/maxTank)*ch, 2, ch); const barW = Math.max(5, Math.min(14, step*.38));
+      const base = pad.t + ch;
+      if(e.kind === 'fill'){
+        const grd=ctx.createLinearGradient(0,base-h,0,base); grd.addColorStop(0,'rgba(53,208,127,.95)'); grd.addColorStop(1,'rgba(45,140,255,.35)'); ctx.fillStyle=grd;
+        roundRect(ctx, x-barW/2, base-h, barW, h, 5); ctx.fill();
+      } else {
+        ctx.fillStyle='rgba(255,107,107,.78)'; roundRect(ctx, x-barW/2, base-Math.min(h,36), barW, Math.min(h,36), 5); ctx.fill();
+      }
+    });
+    ctx.beginPath();
+    rows.forEach((e,i)=>{ const x=xFor(i), y=yFor(e.balance); if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y); });
+    ctx.lineWidth=3; ctx.strokeStyle='#24c6ff'; ctx.stroke();
+    rows.forEach((e,i)=>{ const x=xFor(i), y=yFor(e.balance); ctx.beginPath(); ctx.arc(x,y,3.4,0,Math.PI*2); ctx.fillStyle=e.kind==='fill'?'#35d07f':'#ff6b6b'; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.stroke(); });
+    const last = rows.at(-1); ctx.fillStyle='rgba(255,255,255,.72)'; ctx.font='11px Inter'; ctx.textAlign='right'; ctx.fillText('Sisa '+fmt.liter(last.balance), W-pad.r, 12);
+  }
+
   function drawFuelChart(){
     const canvas = el('fuel-chart'); if(!canvas) return;
     const ctx = canvas.getContext('2d'); const dpr = devicePixelRatio || 1; const rect = canvas.getBoundingClientRect();
@@ -820,8 +890,8 @@
     const ft = FUEL_TYPES.find(x=>x.id===getPickerValue('fuel-type-picker')) || FUEL_TYPES[0]; const liters=safeNum(el('fuel-lit').value); const price=safeNum(el('fuel-price').value); const km=safeNum(el('fuel-km').value);
     if(!liters || !price) return toast('Liter/harga belum lengkap', 'err');
     state.profile.virtualKm = Math.max(state.profile.virtualKm, km); state.fuelState.liters += liters;
-    const rec = {id:uid(), type:ft.name, typeId:ft.id, liters, price, km:state.profile.virtualKm, ts:Date.now()};
-    state.fuels.unshift(rec); state.expenses.unshift({id:uid(), category:'Fuel', title:`${ft.name} ${liters}L`, amount:price, ts:rec.ts, note:`KM ${fmt.km(rec.km)}`});
+    const rec = {id:uid(), type:ft.name, typeId:ft.id, liters, price, km:state.profile.virtualKm, ts:Date.now(), deltaLiters:liters, fuelAfter:state.fuelState.liters};
+    state.fuels.unshift(rec); state.expenses.unshift({id:uid(), category:'Fuel', title:`${ft.name} ${liters}L`, amount:price, ts:rec.ts, note:`KM ${fmt.km(rec.km)} · sisa ${fmt.liter(state.fuelState.liters)}`});
     updateKmPerLiter(); save(); closeSheet(); toast('Fuel tersimpan'); renderAll();
   }
   function updateKmPerLiter(){
@@ -1139,6 +1209,7 @@
     tracker.lastAccepted = p;
     tracker.anchor = p;
     tracker.route.push(p);
+    pushPreviewPoint(p);
     tracker.pending = [];
     tracker.gpsNote = `${tracker.mode === 'walk' ? 'Walk Test' : 'Ride Moving'} · GPS ±${Math.round(p.acc)}m · +${Math.round(prev ? d : 0)}m`;
     return true;
@@ -1152,11 +1223,27 @@
     if(!tracker.lastAccepted && p.acc <= (tracker.mode === 'walk' ? 60 : 45)) tracker.anchor = p;
     tracker.gpsNote = `${reason} · ±${Math.round(p.acc)}m`;
   }
+  function pushPreviewPoint(p){
+    if(!tracker || !p) return;
+    const limit = tracker.mode === 'walk' ? 95 : 85;
+    if(safeNum(p.acc) > limit) return;
+    tracker.previewRoute = tracker.previewRoute || [];
+    const arr = tracker.previewRoute;
+    const clone = {...p};
+    if(!arr.length){ arr.push(clone); return; }
+    const last = arr[arr.length-1];
+    const d = haversine(last, clone);
+    const dt = Math.abs((clone.ts - last.ts) / 1000);
+    if(d < 2 && dt < 8) return;
+    if(d > 260) return; // loncatan besar jangan bikin garis biru palsu
+    arr.push(clone);
+    if(arr.length > 1600) arr.shift();
+  }
   function startTracker(forceStart=false, warmFix=null, mode='ride'){
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
     mode = mode === 'walk' ? 'walk' : 'ride';
     renderTrackingSheet(forceStart, mode);
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode};
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], previewRoute:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
       const c = pos.coords;
@@ -1175,6 +1262,7 @@
       if(!movementGate(ref, p, d, dt, speedKmh, raw)){
         if(!tracker.lastAccepted && movementCandidate(ref, p, d, dt, speedKmh, raw)){
           tracker.pending.push(p);
+          pushPreviewPoint(p);
           const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
           tracker.gpsNote = `Gerak dashboard terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
           const isWalkMode = tracker.mode === 'walk';
@@ -1206,6 +1294,7 @@
 
       if(!tracker.lastAccepted){
         tracker.pending.push(p);
+        pushPreviewPoint(p);
         const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
         tracker.gpsNote = `Gerakan terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
         if(tracker.pending.length >= 2 || pendingMeters >= (tracker.mode === 'walk' ? 6 : 10) || d >= 45){
@@ -1286,13 +1375,20 @@
     else if(km < .05 && max < 10){ detect='No Movement'; msg='Kayaknya kamu masih diam. Jarak tidak masuk Virtual KM kecuali kamu paksa simpan.'; }
     else if(badRatio > .45){ detect='GPS Unstable'; msg='GPS kurang stabil, jarak mungkin kurang akurat.'; }
     else if(km >= .05){ detect='Motor Ride'; msg='Mode Ride aktif. Macet/pelan tetap dianggap perjalanan motor kalau GPS valid.'; }
-    const route = simplifyRoute(tracker.route, 450); const checkpoints = tracker.checkpoints || []; const pulse = computeRidePulse(route, km, dur, max, tracker.stopMs);
-    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, spikeIgnored:tracker.spikeIgnored||0, mode, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : 'Ride ')+fmt.date(Date.now())}; tracker = null;
+    const countedRoute = simplifyRoute(tracker.route, 450);
+    const previewRoute = simplifyRoute(tracker.previewRoute || [], 450);
+    const countedKm = routeDistance(countedRoute);
+    const previewKm = routeDistance(previewRoute);
+    const usePreviewRoute = previewRoute.length >= 2 && (countedRoute.length < 2 || countedKm < Math.max(0.02, km * 0.25));
+    const route = usePreviewRoute ? previewRoute : countedRoute;
+    const checkpoints = tracker.checkpoints || [];
+    const pulse = computeRidePulse(countedRoute.length >= 2 ? countedRoute : route, km, dur, max, tracker.stopMs);
+    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, spikeIgnored:tracker.spikeIgnored||0, mode, routeSource:usePreviewRoute?'preview':'counted', countedPoints:countedRoute.length, previewPoints:previewRoute.length, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : 'Ride ')+fmt.date(Date.now())}; tracker = null;
     openSheet(`${sheetTitle('Review Ride Lite', 'KM belum masuk sebelum kamu simpan.')}
       <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer valid</div></div>
       <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg valid</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
-      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br>${mode === 'walk' ? `<b>GPS Test:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Mode ini cuma cek GPS, bukan analisis bensin motor.` : `<b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Ini estimasi GPS, bukan bukaan gas ECU asli.`}</div>
+      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br>${mode === 'walk' ? `<b>GPS Test:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Mode ini cuma cek GPS, bukan analisis bensin motor.` : `<b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Kalau pilih <b>Simpan KM</b>, bensin sisa otomatis berkurang sebesar estimasi ini. Ini estimasi GPS, bukan bukaan gas ECU asli.`}</div>
       ${renderRideSummaryMapShell('ride-review-map', route, checkpoints)}
       ${checkpointStripHtml(checkpoints)}
       <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">${mode === 'walk' ? 'Simpan Test' : 'Log saja'}</button>${mode === 'walk' ? '' : '<button class="save-btn" data-action="save-ride-km">Simpan KM</button>'}</div>`);
@@ -1304,8 +1400,14 @@
     if(r.mode === 'walk' && toKm){ toKm = false; toast('Mode jalan kaki disimpan log saja'); }
     r.id = uid(); r.savedToKm = !!toKm; state.rides.unshift(r);
     (r.checkpoints||[]).forEach((c,idx)=>state.places.unshift({id:uid(), name:c.name || `Checkpoint ${idx+1}`, lat:c.lat, lon:c.lon, photo:c.photo, note:`Dari ${r.name || 'Ride'}`, ts:c.ts || r.ts, rideId:r.id}));
-    if(toKm){ state.profile.virtualKm += r.distance; state.fuelState.liters = Math.max(0, state.fuelState.liters - (r.distance / (state.fuelState.kmPerLiter || 55))); }
-    save(); closeSheet(); toast(toKm ? 'Ride Lite masuk Virtual KM' : 'Ride Lite disimpan sebagai log'); renderAll();
+    const fuelUsed = safeNum(r?.pulse?.fuelLiters) || (safeNum(r.distance) / Math.max(1, safeNum(state.fuelState.kmPerLiter) || 55));
+    if(toKm){
+      state.profile.virtualKm += safeNum(r.distance);
+      state.fuelState.liters = Math.max(0, safeNum(state.fuelState.liters) - fuelUsed);
+      r.fuelDeducted = fuelUsed;
+      r.fuelAfter = state.fuelState.liters;
+    }
+    save(); closeSheet(); toast(toKm ? `Ride masuk Virtual KM · Fuel -${fmt.liter(fuelUsed)}` : 'Ride Lite disimpan sebagai log'); renderAll();
   }
 
   function computeRidePulse(points=[], distanceKm=0, durationMs=0, maxSpeed=0, extraStopMs=0){
@@ -1350,11 +1452,11 @@
     const hasRoute = pts.length >= 2;
     return `<div class="ride-map-card">
       <div class="ride-map-head"><b>Ride Summary Map</b><small>${pts.length} titik valid · ${checkpoints.length} foto checkpoint</small></div>
-      <div class="map-status-row"><span class="map-status" id="${id}-status">Cek koneksi map</span><span>peta detail butuh internet</span></div>
+      <div class="map-status-row"><span class="map-status warn" id="${id}-status">Preview rute biru</span><span>map detail butuh internet</span></div>
       <div id="${id}" class="ride-summary-map ${hasRoute ? '' : 'empty'}">
-        ${hasRoute ? '<div class="map-loading">Loading map hasil ride...</div>' : '<div class="map-empty"><b>Belum ada rute valid</b><small>GPS belum cukup stabil buat gambar route.</small></div>'}
+        ${hasRoute ? fallbackRouteSvg(pts) + '<div class="map-fallback-note">Preview rute biru dari GPS valid. Online map akan replace kalau internet siap.</div>' : '<div class="map-empty"><b>Belum ada rute valid</b><small>GPS belum cukup stabil buat gambar route.</small></div>'}
       </div>
-      <small class="ride-map-note"><b>Map online butuh internet.</b> Kalau offline, NGR tetap nampilin preview rute dari titik GPS valid, jadi histori ride tidak hilang.</small>
+      <small class="ride-map-note"><b>Garis biru = rute valid yang dihitung.</b> Map online butuh internet; kalau offline, preview rute tetap muncul dari titik GPS.</small>
     </div>`;
   }
 
@@ -1449,7 +1551,7 @@
       ${renderRideSummaryMapShell('ride-detail-map', r.route||[], r.checkpoints||[])}
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
       ${componentWearHtml({...r,pulse})}
-      <div class="ai-insight">Kang Rusdi: ride ini ${pulse.fuelStress>65?'cukup boros karena banyak speed spike/stop-go':pulse.smoothScore>78?'halus dan cukup irit':'normal, masih bisa dibuat lebih smooth'}. Estimasi fuel ${fmt.liter(pulse.fuelLiters)} (${fmt.rp(pulse.fuelCost)}). Ini estimasi dari GPS, bukan ECU asli.</div>
+      <div class="ai-insight">Kang Rusdi: ride ini ${pulse.fuelStress>65?'cukup boros karena banyak speed spike/stop-go':pulse.smoothScore>78?'halus dan cukup irit':'normal, masih bisa dibuat lebih smooth'}. Estimasi fuel ${fmt.liter(pulse.fuelLiters)} (${fmt.rp(pulse.fuelCost)}). ${r.savedToKm ? `Sudah mengurangi fuel tracker sekitar ${fmt.liter(r.fuelDeducted || pulse.fuelLiters)}.` : 'Belum mengurangi fuel karena disimpan log saja.'} Ini estimasi dari GPS, bukan ECU asli.</div>
       ${checkpointStripHtml(r.checkpoints||[])}
       <div class="form-actions"><button class="save-btn" data-action="close-sheet">Tutup</button></div>`);
     setTimeout(() => renderRideSummaryMap('ride-detail-map', r.route||[], r.checkpoints||[]), 80);
@@ -1594,7 +1696,7 @@
   el('btn-import').addEventListener('click', ()=>el('import-file').click());
   el('import-file').addEventListener('change', e=>{ const f=e.target.files[0]; if(f) importData(f); e.target.value=''; });
   el('btn-reset').addEventListener('click', resetData);
-  window.addEventListener('resize', ()=>{ if($('#page-fuel.active')) drawFuelChart(); });
+  window.addEventListener('resize', ()=>{ if($('#page-fuel.active')) { drawFuelBalanceChart(); drawFuelChart(); } });
   if('serviceWorker' in navigator){ window.addEventListener('load', ()=>navigator.serviceWorker.register('service-worker.js').catch(()=>{})); }
 
   hydrateIcons(); renderAll();

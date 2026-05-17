@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v4-6-gps-calibration-spike-guard';
+const CACHE_NAME = 'ngr-v4-9-fuel-balance-chart';
 const CORE_ASSETS = [
   './',
   './index.html',

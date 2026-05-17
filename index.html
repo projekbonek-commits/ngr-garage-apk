@@ -317,8 +317,20 @@
             <div class="fuel-shortcuts" id="fuel-shortcuts"></div>
           </section>
 
+          <section class="panel reveal delay-3 fuel-balance-panel">
+            <div class="panel-head slim">
+              <div><h2>Grafik Fuel Level</h2><p>Isi BBM naik, ride motor otomatis turun.</p></div>
+            </div>
+            <canvas id="fuel-balance-chart" height="170"></canvas>
+            <div class="chart-legend compact">
+              <span><i class="dot-fill"></i> Isi bensin</span>
+              <span><i class="dot-use"></i> Dipakai ride</span>
+              <span><i class="dot-line"></i> Sisa liter</span>
+            </div>
+          </section>
+
           <section class="panel reveal delay-3">
-            <div class="panel-head slim"><h2>Grafik Pengeluaran</h2></div>
+            <div class="panel-head slim"><h2>Grafik Pembelian BBM</h2></div>
             <canvas id="fuel-chart" height="140"></canvas>
           </section>
 

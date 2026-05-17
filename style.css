@@ -176,3 +176,5 @@ button{border:0;background:none;cursor:pointer}svg{width:22px;height:22px;fill:n
   .tracker-meta.four{grid-template-columns:repeat(2,minmax(0,1fr))}
   .speedo-panel{display:block}.speedo-panel .gps-badge{margin-top:10px}
 }
+
+.chart-legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:10px;color:var(--muted);font-size:11px;font-weight:700}.chart-legend span{display:inline-flex;align-items:center;gap:6px}.chart-legend i{width:10px;height:10px;border-radius:999px;display:inline-block}.chart-legend .dot-fill{background:linear-gradient(135deg,#35d07f,#2d8cff)}.chart-legend .dot-use{background:#ff6b6b}.chart-legend .dot-line{width:18px;height:4px;border-radius:999px;background:#24c6ff}.fuel-balance-panel canvas{width:100%;display:block}
