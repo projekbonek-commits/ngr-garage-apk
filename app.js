@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 4.9;
+  const VERSION = 5.0;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -42,6 +42,13 @@
     clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/>',
     pin:'<path d="M12 21s7-4.7 7-11a7 7 0 1 0-14 0c0 6.3 7 11 7 11Z"/><circle cx="12" cy="10" r="2"/>',
     image:'<rect x="3" y="5" width="18" height="14" rx="3"/><circle cx="8.5" cy="10" r="1.5"/><path d="m21 15-5-5L5 19"/>',
+    shield:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"/><path d="m9 12 2 2 4-5"/>',
+    alert:'<path d="M12 2 2 21h20L12 2Z"/><path d="M12 9v5M12 17h.01"/>',
+    settings:'<path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2 3.5-.2-.1a1.8 1.8 0 0 0-2.1.5l-.1.1h-4l-.1-.1a1.8 1.8 0 0 0-2.1-.5l-.2.1-2-3.5.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1.1H6v-4h.2a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1 2-3.5.2.1a1.8 1.8 0 0 0 2.1-.5l.1-.1h4l.1.1a1.8 1.8 0 0 0 2.1.5l.2-.1 2 3.5-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.5 1.1h.2v4h-.2a1.7 1.7 0 0 0-1.5 1.1Z"/>',
+    toolbox:'<path d="M9 6V4h6v2"/><rect x="3" y="6" width="18" height="14" rx="3"/><path d="M3 11h18M10 11v2h4v-2"/>',
+    thermo:'<path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0Z"/><path d="M12 6v9"/>',
+    map:'<path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15M15 6v15"/>',
+    route:'<circle cx="6" cy="6" r="2"/><circle cx="18" cy="18" r="2"/><path d="M8 6h3a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h7"/>',
     link:'<path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2a5 5 0 0 0 7.1 7.1l1.1-1.1"/>'
   };
   const iconSvg = name => `<svg viewBox="0 0 24 24">${ICONS[name] || ICONS.wrench}</svg>`;
@@ -93,6 +100,41 @@
     {id:'safety', name:'Paket Safety', icon:'brake', desc:'Rem, ban, aki, bearing', items:['front-brake','rear-brake','front-tire','rear-tire','battery','front-bearing','rear-bearing']}
   ];
 
+
+
+  const RIDE_PURPOSES = ['Harian','Sekolah','Bengkel','Touring','Test Motor','Isi BBM','Sunmori','Random Muter'];
+  const TOOLBOX_DEFAULTS = [
+    ['kunci-t','Kunci T','Tools','owned'], ['obeng','Obeng +/-','Tools','owned'], ['tang','Tang','Tools','owned'], ['kunci-busi','Kunci Busi','Tools','wishlist'],
+    ['cleaner-cvt','Cleaner CVT','Consumable','wishlist'], ['lap-microfiber','Lap Microfiber','Detailing','owned'], ['kompresor-mini','Kompresor Mini','Tools','wishlist'], ['baut-clip','Baut / Clip Body','Sparepart','wishlist']
+  ];
+  const FI_CODES = [
+    {code:'1', title:'MAP / sensor tekanan udara', level:'check', text:'Kemungkinan area sensor MAP, soket, kabel, atau selang/vakum intake. Cek soket longgar/kotor dulu.'},
+    {code:'7', title:'Sensor suhu mesin / ECT', level:'check', text:'Kemungkinan sensor suhu atau kabelnya. Kalau muncul saat mesin panas, jangan dipaksa jauh dulu.'},
+    {code:'8', title:'Throttle Position / TPS', level:'warn', text:'Kemungkinan sensor bukaan gas/TPS. Gejala bisa langsam aneh, brebet, atau respon gas tidak normal.'},
+    {code:'9', title:'Intake Air Temperature / IAT', level:'check', text:'Kemungkinan sensor suhu udara masuk atau soket filter box. Cek soket area intake/filter udara.'},
+    {code:'12', title:'Injector / injektor', level:'danger', text:'Area injektor atau kabel injektor. Kalau motor susah hidup/brebet parah, jangan bongkar asal.'},
+    {code:'21', title:'O2 sensor', level:'check', text:'Area sensor O2/knalpot. Bisa ngaruh ke pembacaan campuran bensin.'},
+    {code:'29', title:'IACV / idle air control', level:'warn', text:'Gejala bisa langsam naik turun atau mati saat idle. Cek throttle body dan soket.'},
+    {code:'33', title:'ECM / ECU', level:'danger', text:'Area ECM/ECU atau jalur kabel. Prioritas cek aki, sekring, soket, dan kabel massa.'},
+    {code:'54', title:'Bank angle / sensor kemiringan', level:'warn', text:'Sensor jatuh/kemiringan. Cek soket, posisi sensor, dan apakah motor sempat jatuh.'}
+  ];
+  const EMERGENCY_GUIDES = [
+    {id:'mogok', name:'Mogok mendadak', icon:'alert', steps:['Cek bensin dan fuel estimate', 'Kontak ON, lihat indikator FI kedip?', 'Cek sekring/aki/kabel massa', 'Cek busi kalau ada tools', 'Kalau FI kedip, catat jumlah kedipan']},
+    {id:'brebet', name:'Brebet / ngempos', icon:'filter', steps:['Cek bensin cukup atau tidak', 'Cek filter udara kotor/basah', 'Cek busi dan cop busi', 'Cek CVT kalau tarikan berat', 'Catat kapan muncul: pagi, hujan, gas awal, speed tertentu']},
+    {id:'starter', name:'Starter mati / aki tekor', icon:'battery', steps:['Cek lampu speedometer redup?', 'Cek klakson lemah?', 'Cek kabel aki longgar', 'Coba kick starter kalau ada', 'Prioritaskan cek aki/kiprok kalau berulang']},
+    {id:'cvt', name:'CVT bunyi / getar', icon:'gear', steps:['Jangan gas kasar dulu', 'Catat bunyi muncul saat awal jalan atau speed tertentu', 'Cek riwayat V-Belt/Roller', 'Prioritaskan bongkar ringan CVT kalau makin parah']},
+    {id:'rem', name:'Rem bunyi / kurang pakem', icon:'brake', steps:['Kurangi speed', 'Cek kampas/piringan/tromol', 'Cek minyak rem depan kalau ada', 'Jangan dipaksa ngebut sebelum aman']},
+    {id:'ban', name:'Ban bocor / oleng', icon:'tire', steps:['Pelankan motor', 'Cek tekanan/visual ban', 'Jangan lanjut jauh kalau ban kempes', 'Catat lokasi dan biaya tambal/ganti']}
+  ];
+  const QUICK_ADD_PRESETS = [
+    {id:'fuel-pertalite-1', label:'Pertalite 1L', icon:'fuel', type:'fuel', fuel:'pertalite', liters:1},
+    {id:'km-5', label:'+5 KM', icon:'route', type:'km', km:5},
+    {id:'km-10', label:'+10 KM', icon:'route', type:'km', km:10},
+    {id:'service-oil', label:'Ganti Oli', icon:'oil', type:'service', service:'oil-engine'},
+    {id:'expense-tools', label:'Expense Tools', icon:'toolbox', type:'expense', category:'Tools'},
+    {id:'road-assist', label:'Road Assist', icon:'shield', type:'assist'}
+  ];
+
   const LS_KEY = 'ngr_v2_state';
   const getLS = (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } };
   const setLS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){ console.warn(e); } };
@@ -125,6 +167,11 @@
       ].sort((a,b)=>b.ts-a.ts),
       rides:[],
       places:[],
+      toolbox: TOOLBOX_DEFAULTS.map(t => ({id:t[0], name:t[1], category:t[2], status:t[3], note:'', ts:Date.now()})),
+      roadAssist:{ fiLogs:[], emergencyLogs:[], checklistLogs:[], problemDiary:[] },
+      dailyKmLogs:[],
+      quickAdds:['fuel-pertalite-1','km-5','service-oil','road-assist'],
+      settings:{ gpsSensitivity:'normal', spikeGuardSec:15, minMoveMeter:8, monthlyBudget:{fuel:100000, service:120000, modif:200000}, backupLast:0 },
       ai:{ key:'', model:DEFAULT_AI_MODEL, baseUrl:DEFAULT_AI_BASE_URL, chat:[] },
       links: oldMods.filter(m=>m.link).map(m => ({id:uid(), title:m.name||'Link part', url:m.link, category:'Modif', note:'Migrasi dari wishlist', ts:m.ts||Date.now()}))
     };
@@ -144,14 +191,21 @@
       ai: {...def.ai, ...(state.ai || {})},
       serviceComponents: (state.serviceComponents && state.serviceComponents.length) ? state.serviceComponents : def.serviceComponents,
       bikeChecks: (state.bikeChecks && state.bikeChecks.length) ? state.bikeChecks : def.bikeChecks,
-      fuels: state.fuels || [], mods: state.mods || [], styles: state.styles || [], expenses: state.expenses || [], rides: state.rides || [], places: state.places || [], links: state.links || []
+      fuels: state.fuels || [], mods: state.mods || [], styles: state.styles || [], expenses: state.expenses || [], rides: state.rides || [], places: state.places || [], links: state.links || [],
+      toolbox: state.toolbox || def.toolbox, roadAssist: {...def.roadAssist, ...(state.roadAssist || {})}, dailyKmLogs: state.dailyKmLogs || [],
+      quickAdds: state.quickAdds || def.quickAdds, settings: {...def.settings, ...(state.settings || {}), monthlyBudget:{...def.settings.monthlyBudget, ...((state.settings && state.settings.monthlyBudget) || {})}}
     };
   }
   state.ai.model = normalizeModelId(state.ai.model);
   state.ai.baseUrl = state.ai.baseUrl || DEFAULT_AI_BASE_URL;
   if(!state.links) state.links = [];
   if(!state.places) state.places = [];
-  state.rides = (state.rides || []).map(r => ({route:[], checkpoints:[], pulse:null, ...r}));
+  if(!state.toolbox) state.toolbox = TOOLBOX_DEFAULTS.map(t => ({id:t[0], name:t[1], category:t[2], status:t[3], note:'', ts:Date.now()}));
+  if(!state.roadAssist) state.roadAssist = {fiLogs:[], emergencyLogs:[], checklistLogs:[], problemDiary:[]};
+  if(!state.dailyKmLogs) state.dailyKmLogs = [];
+  if(!state.quickAdds) state.quickAdds = ['fuel-pertalite-1','km-5','service-oil','road-assist'];
+  if(!state.settings) state.settings = {gpsSensitivity:'normal', spikeGuardSec:15, minMoveMeter:8, monthlyBudget:{fuel:100000, service:120000, modif:200000}, backupLast:0};
+  state.rides = (state.rides || []).map(r => ({route:[], checkpoints:[], pulse:null, purpose:'Harian', touring:false, restMinutes:0, ...r}));
   if(!state.version || state.version < VERSION){ state.version = VERSION; save(); }
   function save(){ setLS(LS_KEY, state); }
 
@@ -293,6 +347,55 @@
   function renderSmartRecommendations(targetId='smart-recommendations'){
     const box = el(targetId); if(!box) return;
     box.innerHTML = buildSmartRecommendations().map(r => `<button class="reco-card ${r.tone}" data-go="${r.action==='fuel'?'fuel':r.action==='ride'?'ride':'garage'}" ${r.action==='expense'? 'data-garage-tab="expense"' : r.action==='garage'? 'data-garage-tab="service"' : ''}><span class="row-icon" data-icon="${r.icon}"></span><span><b>${esc(r.title)}</b><small>${esc(r.sub)}</small></span></button>`).join('');
+    renderIconsLater(box);
+  }
+
+  function activityDays(){
+    const days = new Set();
+    const add = ts => { if(ts){ const d = new Date(ts); if(!isNaN(d)) days.add(d.toISOString().slice(0,10)); } };
+    state.rides.forEach(r=>add(r.ts)); state.fuels.forEach(f=>add(f.ts)); state.expenses.forEach(e=>add(e.ts)); state.dailyKmLogs.forEach(k=>add(k.ts));
+    state.serviceComponents.forEach(c => (c.history||[]).forEach(h=>add(h.ts)));
+    return days;
+  }
+  function garageStreak(){
+    const days = activityDays(); let streak = 0; const d = new Date();
+    for(;;){ const key = d.toISOString().slice(0,10); if(days.has(key)){ streak++; d.setDate(d.getDate()-1); } else break; }
+    return streak;
+  }
+  function budgetWarning(){
+    const month = monthExpenses();
+    const budget = Object.values(state.settings?.monthlyBudget || {}).reduce((a,b)=>a+safeNum(b),0) || 420000;
+    const serviceSoon = priorityItems(8).filter(x=>x.kind==='Service' || x.name?.toLowerCase().includes('oli'))[0];
+    const pct = Math.round(month / Math.max(1,budget) * 100);
+    if(serviceSoon && pct > 70) return {tone:'danger', title:'Budget mepet + service dekat', sub:`${serviceSoon.name}. Pengeluaran bulan ini ${pct}% dari limit.`};
+    if(serviceSoon) return {tone:'warn', title:'Sisihin dana service', sub:`${serviceSoon.name}. Jangan keburu modif dulu.`};
+    if(pct > 90) return {tone:'warn', title:'Budget bulan ini hampir habis', sub:`Sudah ${pct}% dari limit bulanan.`};
+    return {tone:'ok', title:'Budget aman', sub:`Pengeluaran bulan ini ${pct}% dari limit.`};
+  }
+  function renderDailyGarage(){
+    const grid = el('daily-garage-grid'); if(!grid) return;
+    const streak = garageStreak(); const bw = budgetWarning();
+    const todayKm = (state.dailyKmLogs||[]).filter(x=>new Date(x.ts).toISOString().slice(0,10)===todayISO()).reduce((a,b)=>a+safeNum(b.km),0);
+    const backupDays = state.settings?.backupLast ? Math.floor((Date.now()-state.settings.backupLast)/86400000) : null;
+    grid.innerHTML = `
+      ${metricMini('Garage Streak', streak ? streak+' hari' : 'mulai hari ini', 'data motor aktif', 'star')}
+      ${metricMini('KM Hari Ini', fmt.km(todayKm), 'manual / ride', 'route')}
+      ${metricMini('Budget Warning', bw.title, bw.sub, bw.tone==='danger'?'alert':'money', bw.tone)}
+      ${metricMini('Backup', backupDays===null?'belum pernah':backupDays+' hari lalu', 'export JSON amanin data', 'settings', backupDays!==null && backupDays<14?'ok':'warn')}
+    `;
+    renderQuickAdds('smart-quick-list');
+    renderIconsLater(grid);
+  }
+  function metricMini(title, value, sub, icon='star', tone='ok'){
+    return `<article class="v5-metric ${tone}"><span data-icon="${icon}"></span><div><small>${esc(title)}</small><b>${esc(value)}</b><em>${esc(sub||'')}</em></div></article>`;
+  }
+  function renderQuickAdds(targetId='smart-quick-list'){
+    const box = el(targetId); if(!box) return;
+    const ids = state.quickAdds || [];
+    box.innerHTML = ids.map(id => {
+      const q = QUICK_ADD_PRESETS.find(x=>x.id===id); if(!q) return '';
+      return `<button class="quick-chip" data-action="run-quick" data-quick="${esc(q.id)}"><span data-icon="${q.icon}"></span><b>${esc(q.label)}</b></button>`;
+    }).join('') || `<div class="empty">Belum ada quick add. Atur di Settings.</div>`;
     renderIconsLater(box);
   }
   function renderHealthBreakdown(){
@@ -467,6 +570,7 @@
     renderSmartRecommendations();
     el('ai-insight').innerHTML = generateInsight();
     renderTimeline(el('home-timeline'), smartTimeline(6));
+    renderDailyGarage();
   }
   function componentSub(h){
     const km = h.kmLeft == null ? '' : (h.kmLeft < 0 ? `${fmt.km(Math.abs(h.kmLeft))} lewat` : `${fmt.km(h.kmLeft)} left`);
@@ -490,6 +594,7 @@
 
   function renderGarage(){
     renderGarageCommand();
+    renderGarageV5();
     const active = $('#garage-tabs button.active')?.dataset.garageTab || 'service';
     if(active==='service') renderServiceList();
     if(active==='check') renderCheckList();
@@ -582,6 +687,7 @@
   }
 
   function renderRide(){
+    renderRoadAssist('ride-road-assist');
     const rides = state.rides || [];
     const places = state.places || [];
     const totalKm = rides.reduce((a,b)=>a+safeNum(b.distance),0);
@@ -999,6 +1105,7 @@
   function saveExpense(){ const title=el('exp-title').value.trim(); const amount=safeNum(el('exp-amount').value); if(!title||!amount) return toast('Judul/nominal belum lengkap','err'); state.expenses.unshift({id:uid(), category:getPickerValue('exp-cat-picker') || 'Other', title, amount, note:el('exp-note').value.trim(), ts:Date.now()}); save(); closeSheet(); toast('Expense tersimpan'); renderAll(); }
 
   let tracker = null, warmup = null;
+  let pendingRidePurpose = 'Harian', pendingTouringMode = false;
 
   function openRideSheet(){
     const modes = [
@@ -1008,6 +1115,10 @@
     openSheet(`${sheetTitle('NGR Ride Lite', 'Pilih mode dulu biar tracking nggak salah baca macet/jalan kaki.')}
       <div class="mini-caption">Mode tracking</div>
       ${smartPicker('ride-mode-picker', modes, 'ride', 'status-picker')}
+      <div class="mini-caption">Tujuan ride</div>
+      ${smartPicker('ride-purpose-picker', RIDE_PURPOSES.map(p=>({value:p,label:p,sub:p==='Touring'?'jalan jauh / spot foto':p==='Bengkel'?'cek/service motor':'kategori ride',icon:p==='Touring'?'shield':p==='Isi BBM'?'fuel':'route'})), 'Harian', 'status-picker')}
+      <label class="toggle-line"><input type="checkbox" id="ride-touring-check" /> <span>Aktifkan Touring Mode di ride ini</span></label>
+
       <div class="tracker-card">
         <div class="tracker-status-row"><span class="gps-badge warn">Cek GPS</span><span class="muted">tunggu status SIAP</span></div>
         <div class="tracker-display"><div class="tracker-distance">GPS</div><div class="muted">siap jalan?</div></div>
@@ -1120,7 +1231,7 @@
     const modeLabel = isWalk ? 'Test Jalan Kaki' : 'Ride Motor';
     openSheet(`${sheetTitle('NGR Ride Tracking', isWalk ? 'Mode test jalan kaki aktif.' : (forceStart ? 'Low Signal Mode aktif. Sensitivitas dashboard.' : 'GPS TRACKING SIAP — jalan sekarang.'))}
       <div class="tracker-card">
-        <div class="tracker-status-row"><span class="gps-badge" id="trk-mode">${isWalk ? 'Walk Test' : (forceStart ? 'Low Signal' : 'Ride Siap')}</span><span class="muted">${modeLabel}</span></div>
+        <div class="tracker-status-row"><span class="gps-badge" id="trk-mode">${isWalk ? 'Walk Test' : (forceStart ? 'Low Signal' : 'Ride Siap')}</span><span class="muted">${modeLabel} · ${esc(pendingRidePurpose || 'Harian')}${pendingTouringMode ? ' · Touring' : ''}</span></div>
         <div class="speedo-panel"><div><small>Speed sekarang</small><b><span id="trk-current-speed">0</span><em> km/j</em></b></div><span class="gps-badge" id="trk-gps-quality">GPS —</span></div>
         <div class="tracker-display"><div class="tracker-distance" id="trk-dist">0.00</div><div class="muted">kilometer valid</div></div>
         <div class="tracker-meta four"><div><b id="trk-time">0m</b><small>Durasi</small></div><div><b id="trk-speed">0</b><small>avg km/j</small></div><div><b id="trk-max">0</b><small>max</small></div><div><b id="trk-accuracy">—</b><small>akurasi</small></div></div>
@@ -1153,19 +1264,21 @@
     return clamp(Math.max(30, (accA + accB) * .72), 30, 70);
   }
   function rawSpeedKmh(coords){ return coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : NaN; }
+  function gpsTuning(){ const s = state.settings?.gpsSensitivity || 'normal'; return s==='santai' ? {move:.72, acc:1.18, speed:.78} : s==='ketat' ? {move:1.28, acc:.82, speed:1.18} : {move:1, acc:1, speed:1}; }
   function movementGate(ref,p,d,dt,speedKmh,raw){
     const mode = tracker?.mode === 'walk' ? 'walk' : 'ride';
+    const tune = gpsTuning();
     const saneTime = dt > 0.8 && dt < 45;
     if(!saneTime || speedKmh >= 125) return false;
-    const accLimit = mode === 'walk' ? (tracker?.forceStart ? 85 : 70) : (tracker?.forceStart ? 78 : 58);
+    const accLimit = (mode === 'walk' ? (tracker?.forceStart ? 85 : 70) : (tracker?.forceStart ? 78 : 58)) * tune.acc;
     if(p.acc > accLimit) return false;
     const accA = Math.min(80, Math.max(0, safeNum(ref?.acc || 0)));
     const accB = Math.min(80, Math.max(0, safeNum(p?.acc || 0)));
     const need = mode === 'walk'
-      ? clamp(Math.max(4, (accA + accB) * .16), 4, 16)
-      : clamp(Math.max(6, (accA + accB) * .20), 6, 22);
-    const rawOk = Number.isFinite(raw) && raw >= (mode === 'walk' ? 1.2 : 2.0);
-    const derivedOk = speedKmh >= (mode === 'walk' ? 1.8 : 2.4) && d >= (mode === 'walk' ? 3 : 4);
+      ? clamp(Math.max(4, (accA + accB) * .16), 4, 16) * tune.move
+      : Math.max(safeNum(state.settings?.minMoveMeter)||8, clamp(Math.max(6, (accA + accB) * .20), 6, 22) * tune.move);
+    const rawOk = Number.isFinite(raw) && raw >= (mode === 'walk' ? 1.2 : 2.0) * tune.speed;
+    const derivedOk = speedKmh >= (mode === 'walk' ? 1.8 : 2.4) * tune.speed && d >= (mode === 'walk' ? 3 : 4);
     const distanceOk = d >= need;
     return (rawOk || derivedOk || distanceOk) && d >= (mode === 'walk' ? 2.5 : 3.5);
   }
@@ -1190,7 +1303,7 @@
     const seg = classifyPoint(prev || ref, p, d, dt, speedKmh);
     if(seg === 'bad') { tracker.bad++; tracker.gpsNote = 'GPS loncat, titik dibuang'; return false; }
     const elapsed = p.ts - tracker.start;
-    const earlyStats = elapsed < 15000 || tracker.points < 3 || tracker.distance < 35;
+    const earlyStats = elapsed < (safeNum(state.settings?.spikeGuardSec)||15)*1000 || tracker.points < 3 || tracker.distance < 35;
     let statsSpeed = speedKmh;
     if(earlyStats && speedKmh > (tracker.mode === 'walk' ? 12 : 35)){
       tracker.spikeIgnored = (tracker.spikeIgnored || 0) + 1;
@@ -1243,13 +1356,14 @@
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
     mode = mode === 'walk' ? 'walk' : 'ride';
     renderTrackingSheet(forceStart, mode);
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], previewRoute:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode};
+    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], previewRoute:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode, purpose: pendingRidePurpose || 'Harian', touring: !!pendingTouringMode};
     tracker.watchId = navigator.geolocation.watchPosition(pos=>{
       if(!tracker || tracker.paused) return;
       const c = pos.coords;
       const raw = rawSpeedKmh(c);
       const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:0, rawSpeedKmh:raw, seg:'normal'};
-      const maxAcc = tracker.mode === 'walk' ? (tracker.forceStart ? 110 : 85) : (tracker.forceStart ? 100 : 75);
+      const tune = gpsTuning();
+      const maxAcc = (tracker.mode === 'walk' ? (tracker.forceStart ? 110 : 85) : (tracker.forceStart ? 100 : 75)) * tune.acc;
       if(p.acc > maxAcc){ tracker.bad++; tracker.lastRaw = p; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), tunggu sinyal stabil`; updateTrackerUI(); return; }
       if(!tracker.anchor){ tracker.anchor = p; tracker.lastRaw = p; tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m · belum hitung jarak`; updateTrackerUI(); return; }
 
@@ -1383,12 +1497,14 @@
     const route = usePreviewRoute ? previewRoute : countedRoute;
     const checkpoints = tracker.checkpoints || [];
     const pulse = computeRidePulse(countedRoute.length >= 2 ? countedRoute : route, km, dur, max, tracker.stopMs);
-    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, spikeIgnored:tracker.spikeIgnored||0, mode, routeSource:usePreviewRoute?'preview':'counted', countedPoints:countedRoute.length, previewPoints:previewRoute.length, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : 'Ride ')+fmt.date(Date.now())}; tracker = null;
+    const restMinutes = mode === 'walk' ? 0 : Math.min(25, Math.max(3, Math.round((dur/60000)*0.22 + pulse.fuelStress/12)));
+    const purpose = tracker.purpose || 'Harian';
+    const summary = {distance:km, durationMs:dur, movingMs:tracker.movingMs, avgSpeed:avg, maxSpeed:max, detect, msg, route, checkpoints, pulse, ignored:tracker.ignored, bad:tracker.bad, spikeIgnored:tracker.spikeIgnored||0, mode, purpose, touring:!!tracker.touring, restMinutes, routeSource:usePreviewRoute?'preview':'counted', countedPoints:countedRoute.length, previewPoints:previewRoute.length, ts:Date.now(), name:(mode === 'walk' ? 'Walk Test ' : purpose + ' ')+fmt.date(Date.now())}; tracker = null;
     openSheet(`${sheetTitle('Review Ride Lite', 'KM belum masuk sebelum kamu simpan.')}
       <div class="tracker-display"><div class="tracker-distance">${km.toFixed(2)}</div><div class="muted">kilometer valid</div></div>
       <div class="tracker-meta"><div><b>${fmt.min(dur)}</b><small>Durasi</small></div><div><b>${Math.round(avg)}</b><small>avg valid</small></div><div><b>${Math.round(max)}</b><small>max km/j</small></div></div>
       <div class="pulse-grid">${pulseMiniHtml(pulse)}</div>
-      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br>${mode === 'walk' ? `<b>GPS Test:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Mode ini cuma cek GPS, bukan analisis bensin motor.` : `<b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100. Kalau pilih <b>Simpan KM</b>, bensin sisa otomatis berkurang sebesar estimasi ini. Ini estimasi GPS, bukan bukaan gas ECU asli.`}</div>
+      <div class="warning-box"><b>${detect}</b><br>${msg}<br><br>${mode === 'walk' ? `<b>GPS Test:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Mode ini cuma cek GPS, bukan analisis bensin motor.` : `<b>Stable GPS:</b> ${summary.ignored||0} drift diabaikan · ${summary.bad||0} titik buruk dibuang · ${summary.spikeIgnored||0} speed spike awal dibuang. Estimasi bensin ${fmt.liter(pulse.fuelLiters)} · fuel stress ${pulse.fuelStress}/100 · rest timer ${summary.restMinutes} menit. Kalau pilih <b>Simpan KM</b>, bensin sisa otomatis berkurang sebesar estimasi ini. Ini estimasi GPS, bukan bukaan gas ECU asli.`}</div>
       ${renderRideSummaryMapShell('ride-review-map', route, checkpoints)}
       ${checkpointStripHtml(checkpoints)}
       <div class="form-actions"><button class="cancel-btn" data-action="discard-ride">Buang</button><button class="cancel-btn" data-action="log-ride-only">${mode === 'walk' ? 'Simpan Test' : 'Log saja'}</button>${mode === 'walk' ? '' : '<button class="save-btn" data-action="save-ride-km">Simpan KM</button>'}</div>`);
@@ -1491,7 +1607,7 @@
     return {minLat:Math.min(...lats), maxLat:Math.max(...lats), minLon:Math.min(...lons), maxLon:Math.max(...lons)};
   }
 
-  function fallbackRouteSvg(route=[]){
+  function fallbackRouteSvg(route=[], overlay=false){
     const pts = (route || []).filter(p => Number.isFinite(Number(p.lat)) && Number.isFinite(Number(p.lon)));
     if(pts.length < 2) return '<div class="map-empty"><b>Rute belum cukup</b><small>Minimal 2 titik valid.</small></div>';
     const b = routeBounds(pts);
@@ -1504,7 +1620,7 @@
     };
     const d = pts.map((p,i)=>{ const [x,y]=xy(p); return `${i?'L':'M'}${x.toFixed(1)} ${y.toFixed(1)}`; }).join(' ');
     const [sx,sy] = xy(pts[0]); const [ex,ey] = xy(pts[pts.length-1]);
-    return `<svg viewBox="0 0 ${w} ${h}" class="route-svg" role="img" aria-label="Route preview"><defs><linearGradient id="routeGrad" x1="0" x2="1"><stop offset="0" stop-color="#2d8cff"/><stop offset="1" stop-color="#23d2ff"/></linearGradient></defs><path d="${d}" fill="none" stroke="url(#routeGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="${sx}" cy="${sy}" r="7" fill="#35d07f"/><circle cx="${ex}" cy="${ey}" r="7" fill="#ff5b6e"/></svg>`;
+    return `<svg viewBox="0 0 ${w} ${h}" class="route-svg ${overlay ? 'route-svg-overlay' : ''}" role="img" aria-label="Route preview"><defs><linearGradient id="routeGrad" x1="0" x2="1"><stop offset="0" stop-color="#2d8cff"/><stop offset="1" stop-color="#23d2ff"/></linearGradient><filter id="routeGlow"><feGaussianBlur stdDeviation="2.2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><path d="${d}" fill="none" stroke="rgba(0,0,0,.42)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/><path d="${d}" fill="none" stroke="url(#routeGrad)" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" filter="url(#routeGlow)"/><circle cx="${sx}" cy="${sy}" r="7" fill="#35d07f" stroke="#fff" stroke-width="2"/><circle cx="${ex}" cy="${ey}" r="7" fill="#ff5b6e" stroke="#fff" stroke-width="2"/></svg>`;
   }
 
   async function renderRideSummaryMap(id, route=[], checkpoints=[]){
@@ -1518,19 +1634,26 @@
       const L = await ensureLeaflet();
       if(!el(id)) return;
       if(statusEl){ statusEl.textContent = 'Map online'; statusEl.className = 'map-status ok'; }
-      box.innerHTML = '';
-      const map = L.map(id, {zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, tap:true});
+      box.innerHTML = `<div id="${id}-leaflet" class="ride-leaflet-layer"></div><div class="route-overlay-layer">${fallbackRouteSvg(pts, true)}</div><div class="map-fallback-note online-note">Map online + overlay rute biru. Kalau tile map telat, garis biru tetap tampil.</div>`;
+      const mapEl = el(id + '-leaflet');
+      const map = L.map(mapEl, {zoomControl:false, attributionControl:false, dragging:true, scrollWheelZoom:false, tap:true, preferCanvas:false});
       L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {maxZoom:19, subdomains:'abcd'}).addTo(map);
       const latlngs = pts.map(p => [Number(p.lat), Number(p.lon)]);
-      const line = L.polyline(latlngs, {color:'#2d8cff', weight:5, opacity:.92, lineCap:'round', lineJoin:'round'}).addTo(map);
-      L.circleMarker(latlngs[0], {radius:7, color:'#06131e', weight:3, fillColor:'#35d07f', fillOpacity:1}).addTo(map);
-      L.circleMarker(latlngs[latlngs.length-1], {radius:7, color:'#06131e', weight:3, fillColor:'#ff5b6e', fillOpacity:1}).addTo(map);
+      const routePane = map.createPane('ngrRoutePane');
+      routePane.style.zIndex = 650;
+      routePane.style.pointerEvents = 'none';
+      const line = L.polyline(latlngs, {pane:'ngrRoutePane', color:'#27c7ff', weight:7, opacity:1, lineCap:'round', lineJoin:'round'}).addTo(map);
+      L.polyline(latlngs, {pane:'ngrRoutePane', color:'rgba(0,0,0,.55)', weight:12, opacity:1, lineCap:'round', lineJoin:'round'}).addTo(map).bringToBack();
+      L.circleMarker(latlngs[0], {pane:'ngrRoutePane', radius:7, color:'#fff', weight:2, fillColor:'#35d07f', fillOpacity:1}).addTo(map);
+      L.circleMarker(latlngs[latlngs.length-1], {pane:'ngrRoutePane', radius:7, color:'#fff', weight:2, fillColor:'#ff5b6e', fillOpacity:1}).addTo(map);
       (checkpoints||[]).filter(c=>c.lat&&c.lon).forEach(c => {
-        const marker = L.circleMarker([Number(c.lat), Number(c.lon)], {radius:6, color:'#06131e', weight:2, fillColor:'#ffd166', fillOpacity:1}).addTo(map);
+        const marker = L.circleMarker([Number(c.lat), Number(c.lon)], {pane:'ngrRoutePane', radius:6, color:'#06131e', weight:2, fillColor:'#ffd166', fillOpacity:1}).addTo(map);
         if(c.photo) marker.bindPopup(`<img src="${c.photo}" style="width:120px;height:82px;object-fit:cover;border-radius:10px;display:block;margin-bottom:6px"><b>${esc(c.name || 'Checkpoint')}</b>`);
       });
-      map.fitBounds(line.getBounds(), {padding:[18,18]});
-      setTimeout(()=>map.invalidateSize(), 160);
+      const fit = () => { map.invalidateSize(); map.fitBounds(line.getBounds(), {padding:[22,22]}); line.bringToFront(); };
+      setTimeout(fit, 80);
+      setTimeout(fit, 300);
+      setTimeout(fit, 800);
     }catch(err){
       const statusEl = el(id + '-status');
       if(statusEl){ statusEl.textContent = 'Offline preview'; statusEl.className = 'map-status warn'; }
@@ -1577,7 +1700,7 @@
   function appContext(){
     const worst = state.serviceComponents.map(c=>({name:c.name, health:serviceHealth(c).pct, left:componentSub(serviceHealth(c))})).sort((a,b)=>a.health-b.health).slice(0,5);
     const bad = state.bikeChecks.filter(p=>p.status!=='ok').slice(0,8).map(p=>`${p.name}: ${partStatusLabel(p.status)}`);
-    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Smart Garage OS Health 2.0: ${healthScore()}%. Smart recommendation: ${buildSmartRecommendations(1)[0]?.title || 'aman'}. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Budget bulan ini: ${fmt.rp(monthExpenses())}. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia. Jelaskan kalau analisis fuel/ride itu estimasi GPS, bukan ECU asli.`;
+    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Smart Garage OS Health 2.0: ${healthScore()}%. Smart recommendation: ${buildSmartRecommendations(1)[0]?.title || 'aman'}. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Budget bulan ini: ${fmt.rp(monthExpenses())}. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Problem diary: ${(state.roadAssist.problemDiary||[]).slice(0,3).map(p=>p.title+': '+p.note).join('; ') || 'kosong'}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia. Jelaskan kalau analisis fuel/ride itu estimasi GPS, bukan ECU asli.`;
   }
   async function sendAI(){
     const input = el('ai-input'); const text = input.value.trim(); if(!text) return; if(!state.ai.key) return toast('Isi API Key dulu', 'err');
@@ -1593,10 +1716,180 @@
     }catch(e){ state.ai.chat[state.ai.chat.length-1] = {role:'assistant', content:'⚠️ ' + (e.message || e)}; save(); renderAI(); }
   }
 
-  function exportData(){ const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ngr-health-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
+  function exportData(){ state.settings = state.settings || {}; state.settings.backupLast = Date.now(); save(); const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ngr-health-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
   function importData(file){ const r=new FileReader(); r.onload=()=>{ try{ const data=JSON.parse(r.result); if(!data.profile) throw new Error('File bukan backup NGR'); state = {...createDefaultState(), ...data, version:VERSION}; save(); toast('Backup berhasil diimport'); renderAll(); }catch(e){ toast('Import gagal: '+e.message,'err'); } }; r.readAsText(file); }
   function resetData(){ if(confirm('Reset semua data NGR v2?')){ localStorage.removeItem(LS_KEY); state=createDefaultState(); save(); renderAll(); toast('Data direset'); } }
 
+
+  function renderRoadAssist(targetId='ride-road-assist'){
+    const box = el(targetId); if(!box) return;
+    const fiCount = state.roadAssist?.fiLogs?.length || 0;
+    const emCount = state.roadAssist?.emergencyLogs?.length || 0;
+    box.innerHTML = `
+      <button class="assist-card" data-action="fi-helper"><span data-icon="ai"></span><b>FI Code Helper</b><small>${fiCount} log · input kedipan</small></button>
+      <button class="assist-card" data-action="emergency"><span data-icon="alert"></span><b>Emergency Checklist</b><small>${emCount} catatan masalah</small></button>
+      <button class="assist-card" data-action="touring-mode"><span data-icon="shield"></span><b>Touring Mode</b><small>checklist sebelum jalan</small></button>
+      <button class="assist-card" data-action="ride-compare"><span data-icon="route"></span><b>Ride Compare</b><small>bandingin 2 ride</small></button>`;
+    renderIconsLater(box);
+  }
+  function renderToolbox(){
+    const box = el('toolbox-list'); if(!box) return;
+    box.innerHTML = (state.toolbox||[]).map(t => `<article class="tool-card ${esc(t.status)}"><span data-icon="toolbox"></span><div><b>${esc(t.name)}</b><small>${esc(t.category)} · ${toolStatus(t.status)}${t.note?' · '+esc(t.note):''}</small></div><button class="mini-link" data-action="toolbox-edit" data-id="${esc(t.id)}">Edit</button></article>`).join('') || `<div class="empty">Belum ada toolbox.</div>`;
+    renderIconsLater(box);
+  }
+  function toolStatus(s){ return {owned:'Punya', wishlist:'Wishlist', broken:'Rusak', borrowed:'Pinjam'}[s] || s || 'Punya'; }
+  function renderSettingsPanel(){
+    const box = el('settings-grid'); if(!box) return;
+    const st = state.settings || {};
+    const size = new Blob([JSON.stringify(state)]).size;
+    box.innerHTML = `
+      ${metricMini('App Version', 'v'+VERSION, 'NGR Smart Daily Garage', 'settings')}
+      ${metricMini('Data Size', (size/1024).toFixed(1)+' KB', 'local JSON', 'shield')}
+      ${metricMini('GPS Filter', st.gpsSensitivity || 'normal', 'ride sensitivity', 'speed')}
+      ${metricMini('Fuel Default', fmt.rp(fuelPriceFor('pertalite'))+'/L', 'Pertalite shortcut', 'fuel')}`;
+    renderQuickAdds('settings-quick-list'); renderIconsLater(box);
+  }
+  function renderGarageV5(){ renderToolbox(); renderSettingsPanel(); renderRoadAssist('garage-road-assist'); }
+  function openToolboxSheet(id){
+    const t = id ? state.toolbox.find(x=>x.id===id) : {name:'', category:'Tools', status:'owned', note:''};
+    const statuses = ['owned','wishlist','broken','borrowed'].map(s=>({value:s,label:toolStatus(s),sub:s==='owned'?'sudah ada':s==='wishlist'?'rencana beli':s==='broken'?'perlu ganti':'lagi dipinjam',icon:'toolbox'}));
+    openSheet(`${sheetTitle(id?'Edit Tool':'Tambah Tool', 'Inventaris alat pribadi di Garage.')}
+      <label class="field hero-input"><span>Nama Tool</span><input id="tool-name" value="${esc(t.name)}" placeholder="Kunci T / cleaner CVT" /></label>
+      <label class="field"><span>Kategori</span><input id="tool-cat" value="${esc(t.category)}" placeholder="Tools / Sparepart / Detailing" /></label>
+      ${smartPicker('tool-status-picker', statuses, t.status || 'owned', 'status-picker')}
+      <label class="field"><span>Catatan</span><textarea id="tool-note" placeholder="ukuran, kondisi, lokasi simpan...">${esc(t.note||'')}</textarea></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-toolbox" data-id="${esc(id||'')}">Simpan</button></div>`);
+  }
+  function saveToolbox(id=''){
+    const name = el('tool-name').value.trim(); if(!name) return toast('Nama tool wajib diisi','err');
+    const data = {name, category:el('tool-cat').value.trim()||'Tools', status:getPickerValue('tool-status-picker')||'owned', note:el('tool-note').value.trim(), ts:Date.now()};
+    const found = id && state.toolbox.find(x=>x.id===id);
+    if(found) Object.assign(found, data); else state.toolbox.unshift({id:uid(), ...data});
+    save(); closeSheet(); toast('Toolbox tersimpan'); renderAll();
+  }
+  function openSettingsSheet(){
+    const st = state.settings || {};
+    const sens = [{value:'santai',label:'Santai',sub:'lebih gampang mulai, risiko drift lebih besar',icon:'speed'}, {value:'normal',label:'Normal',sub:'seimbang buat dashboard',icon:'speed'}, {value:'ketat',label:'Ketat',sub:'lebih tahan drift, perlu GPS bagus',icon:'shield'}];
+    openSheet(`${sheetTitle('Settings NGR', 'GPS, budget, backup, dan fuel price manager.')}
+      <div class="mini-caption">Ride Sensitivity</div>${smartPicker('gps-sens-picker', sens, st.gpsSensitivity || 'normal', 'status-picker')}
+      <div class="form-grid"><label class="field"><span>Min gerak meter</span><input id="set-min-move" type="number" value="${safeNum(st.minMoveMeter)||8}" /></label><label class="field"><span>Spike guard detik</span><input id="set-spike" type="number" value="${safeNum(st.spikeGuardSec)||15}" /></label></div>
+      <div class="mini-caption">Budget Bulanan</div>
+      <div class="form-grid"><label class="field"><span>Fuel</span><input id="budget-fuel" type="number" value="${safeNum(st.monthlyBudget?.fuel)||100000}" /></label><label class="field"><span>Service</span><input id="budget-service" type="number" value="${safeNum(st.monthlyBudget?.service)||120000}" /></label></div>
+      <label class="field"><span>Modif</span><input id="budget-modif" type="number" value="${safeNum(st.monthlyBudget?.modif)||200000}" /></label>
+      <div class="utility-row"><button class="ghost-btn" data-action="fuel-settings">Fuel Price</button><button class="ghost-btn" data-action="export-data">Export JSON</button><button class="ghost-btn" data-action="import-data">Import JSON</button></div>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-settings">Simpan Settings</button></div>`);
+  }
+  function saveSettings(){
+    state.settings.gpsSensitivity = getPickerValue('gps-sens-picker') || 'normal';
+    state.settings.minMoveMeter = Math.max(3, safeNum(el('set-min-move').value)||8);
+    state.settings.spikeGuardSec = Math.max(5, safeNum(el('set-spike').value)||15);
+    state.settings.monthlyBudget = {fuel:safeNum(el('budget-fuel').value), service:safeNum(el('budget-service').value), modif:safeNum(el('budget-modif').value)};
+    save(); closeSheet(); toast('Settings disimpan'); renderAll();
+  }
+  function openQuickAddSettings(){
+    openSheet(`${sheetTitle('Quick Add Custom', 'Pilih shortcut favorit buat Home dan tombol +.')}
+      <div class="quick-preset-list">${QUICK_ADD_PRESETS.map(q=>`<label class="quick-toggle"><input type="checkbox" value="${esc(q.id)}" ${state.quickAdds.includes(q.id)?'checked':''}/><span data-icon="${q.icon}"></span><b>${esc(q.label)}</b></label>`).join('')}</div>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-quick-adds">Simpan Quick Add</button></div>`);
+    hydrateIcons(sheet);
+  }
+  function saveQuickAdds(){ state.quickAdds = $$('.quick-preset-list input:checked', sheet).map(i=>i.value); save(); closeSheet(); toast('Quick Add update'); renderAll(); }
+  function runQuickAdd(id){
+    const q = QUICK_ADD_PRESETS.find(x=>x.id===id); if(!q) return;
+    if(q.type==='fuel') return openFuelSheet(q.fuel, q.liters, false);
+    if(q.type==='km') return addKm(q.km, 'quick-add');
+    if(q.type==='service') return openServiceSheet(q.service);
+    if(q.type==='expense') return openExpenseSheet();
+    if(q.type==='assist') return openRoadAssistSheet();
+  }
+  function openDailyKmSheet(){
+    openSheet(`${sheetTitle('Daily KM Estimate', 'Kalau lupa GPS, input perkiraan harian manual.')}
+      <div class="choice-grid">${[0,5,10,15,25].map(n=>`<button class="choice" data-action="daily-km-add" data-km="${n}"><b>${n} km</b><small>hari ini</small></button>`).join('')}</div>
+      <label class="field"><span>Custom KM</span><input id="daily-km-custom" type="number" placeholder="Contoh 7.5" /></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="daily-km-custom-save">Simpan Custom</button></div>`);
+  }
+  function saveDailyKm(km){
+    km = safeNum(km); state.dailyKmLogs.unshift({id:uid(), km, ts:Date.now()});
+    if(km>0) addKm(km, 'daily-estimate'); else { save(); closeSheet(); toast('Hari ini ditandai tidak pakai motor'); renderAll(); }
+  }
+  function openRoadAssistSheet(){
+    openSheet(`${sheetTitle('NGR Road Assist', 'Bantuan offline kalau FI nyala / motor bermasalah tiba-tiba.')}
+      <div class="road-assist-grid tall">
+        <button class="assist-card" data-action="fi-helper"><span data-icon="ai"></span><b>FI Code Helper</b><small>input jumlah kedipan</small></button>
+        <button class="assist-card" data-action="emergency"><span data-icon="alert"></span><b>Emergency Checklist</b><small>mogok, brebet, rem, ban</small></button>
+        <button class="assist-card" data-action="touring-mode"><span data-icon="shield"></span><b>Touring Mode</b><small>cek sebelum jalan jauh</small></button>
+        <button class="assist-card" data-action="problem-diary"><span data-icon="clock"></span><b>Problem Diary</b><small>${state.roadAssist.problemDiary.length} catatan</small></button>
+      </div>`);
+  }
+  function openFiHelperSheet(){
+    const opts = FI_CODES.map(c=>({value:c.code, label:`${c.code} kedip`, sub:c.title, icon:'ai', tone:c.level==='danger'?'danger':c.level==='warn'?'warn':'ok'}));
+    openSheet(`${sheetTitle('FI Code Helper', 'Panduan offline umum PGM-FI. Tetap cek manual/bengkel kalau ragu.')}
+      ${smartPicker('fi-code-picker', opts, '1', 'picker-list compact')}
+      <div class="warning-box" id="fi-result"></div>
+      <label class="field"><span>Catatan gejala</span><textarea id="fi-note" placeholder="Contoh: FI kedip pas hujan, motor brebet..."></textarea></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Tutup</button><button class="save-btn" data-action="save-fi-log">Simpan ke Problem Diary</button></div>`);
+    const update = () => { const c = FI_CODES.find(x=>x.code===getPickerValue('fi-code-picker')) || FI_CODES[0]; el('fi-result').innerHTML = `<b>${c.code} kedip — ${esc(c.title)}</b><br>${esc(c.text)}<br><br><small>Catatan: kode bisa beda tergantung model/tahun. Pakai ini sebagai bantuan awal, bukan pengganti manual resmi.</small>`; };
+    el('fi-code-picker').addEventListener('pickerchange', update); update();
+  }
+  function saveFiLog(){
+    const c = FI_CODES.find(x=>x.code===getPickerValue('fi-code-picker')) || FI_CODES[0]; const note = el('fi-note').value.trim();
+    state.roadAssist.fiLogs.unshift({id:uid(), code:c.code, title:c.title, note, ts:Date.now()});
+    state.roadAssist.problemDiary.unshift({id:uid(), type:'FI', title:`FI ${c.code} kedip`, note:[c.title,note].filter(Boolean).join(' · '), status:'dipantau', ts:Date.now()});
+    save(); closeSheet(); toast('FI log tersimpan'); renderAll();
+  }
+  function openEmergencySheet(){
+    const opts = EMERGENCY_GUIDES.map(g=>({value:g.id,label:g.name,sub:g.steps[0],icon:g.icon,tone:g.id==='mogok'?'danger':'warn'}));
+    openSheet(`${sheetTitle('Emergency Checklist', 'Checklist cepat pas motor tiba-tiba bermasalah.')}
+      ${smartPicker('emergency-picker', opts, 'mogok', 'picker-list compact')}
+      <div class="checklist-box" id="emergency-steps"></div>
+      <label class="field"><span>Catatan kejadian</span><textarea id="emergency-note" placeholder="lokasi, gejala, kondisi hujan/panas..."></textarea></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Tutup</button><button class="save-btn" data-action="save-emergency">Simpan Diary</button></div>`);
+    const update = () => { const g = EMERGENCY_GUIDES.find(x=>x.id===getPickerValue('emergency-picker')) || EMERGENCY_GUIDES[0]; el('emergency-steps').innerHTML = `<b>${esc(g.name)}</b><ol>${g.steps.map(s=>`<li>${esc(s)}</li>`).join('')}</ol>`; };
+    el('emergency-picker').addEventListener('pickerchange', update); update();
+  }
+  function saveEmergency(){
+    const g = EMERGENCY_GUIDES.find(x=>x.id===getPickerValue('emergency-picker')) || EMERGENCY_GUIDES[0]; const note=el('emergency-note').value.trim();
+    state.roadAssist.emergencyLogs.unshift({id:uid(), type:g.id, name:g.name, note, ts:Date.now()});
+    state.roadAssist.problemDiary.unshift({id:uid(), type:'Emergency', title:g.name, note, status:'dipantau', ts:Date.now()});
+    save(); closeSheet(); toast('Emergency log tersimpan'); renderAll();
+  }
+  function openTouringModeSheet(){
+    const fuelRange = state.fuelState.liters * (state.fuelState.kmPerLiter || 55);
+    const worst = priorityItems(3).map(x=>x.title).join(', ') || 'tidak ada urgent';
+    openSheet(`${sheetTitle('Touring Mode', 'Checklist sebelum jalan jauh / sunmori / random muter.')}
+      <div class="touring-hero"><span data-icon="shield"></span><div><b>Range ± ${fmt.km(fuelRange)}</b><small>Prioritas cek: ${esc(worst)}</small></div></div>
+      <div class="touring-checks">
+        ${['Ban depan/belakang aman','Rem pakem','Lampu & sein nyala','Bensin cukup','Oli aman','Tools kecil / jas hujan'].map((s,i)=>`<label><input type="checkbox" ${i<3?'checked':''}/> ${esc(s)}</label>`).join('')}
+      </div>
+      <label class="field"><span>Tujuan / catatan</span><input id="touring-note" placeholder="contoh: muter sore / ke bengkel / sunmori" /></label>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Batal</button><button class="save-btn" data-action="save-touring-check">Simpan Checklist</button></div>`);
+    hydrateIcons(sheet);
+  }
+  function saveTouringCheck(){
+    const checked = $$('.touring-checks input:checked', sheet).length; const total = $$('.touring-checks input', sheet).length;
+    state.roadAssist.checklistLogs.unshift({id:uid(), checked, total, note:el('touring-note').value.trim(), ts:Date.now()});
+    save(); closeSheet(); toast(`Touring checklist ${checked}/${total} tersimpan`); renderAll();
+  }
+  function openProblemDiarySheet(){
+    const list = state.roadAssist.problemDiary.slice(0,12).map(p=>`<div class="timeline-item"><div class="row-icon" data-icon="alert"></div><div class="timeline-main"><b>${esc(p.title)}</b><small>${fmt.date(p.ts)} · ${esc(p.status||'dipantau')}<br>${esc(p.note||'')}</small></div></div>`).join('') || '<div class="empty">Belum ada problem diary.</div>';
+    openSheet(`${sheetTitle('Problem Diary', 'Riwayat gejala/masalah buat dibaca Kang Rusdi.')}<div class="timeline">${list}</div>`); hydrateIcons(sheet);
+  }
+  function openRideCompareSheet(){
+    const rides = state.rides.filter(r=>r.distance>0).slice(0,20);
+    if(rides.length<2) return toast('Minimal butuh 2 ride buat compare', 'err');
+    const opts = rides.map(r=>({value:r.id,label:r.name||'Ride',sub:`${fmt.km(r.distance)} · ${fmt.date(r.ts)}`,icon:'ride'}));
+    openSheet(`${sheetTitle('Ride Compare', 'Bandingin fuel stress, smooth, jarak, dan rute mana yang lebih enak.')}
+      <div class="mini-caption">Ride A</div>${smartPicker('cmp-a', opts, rides[0].id, 'picker-list compact')}
+      <div class="mini-caption">Ride B</div>${smartPicker('cmp-b', opts, rides[1].id, 'picker-list compact')}
+      <div class="compare-result" id="compare-result"></div>
+      <div class="form-actions"><button class="cancel-btn" data-action="close-sheet">Tutup</button></div>`);
+    const update = () => { const a=rides.find(r=>r.id===getPickerValue('cmp-a')), b=rides.find(r=>r.id===getPickerValue('cmp-b')); if(!a||!b) return; el('compare-result').innerHTML = rideCompareHtml(a,b); hydrateIcons(el('compare-result')); };
+    el('cmp-a').addEventListener('pickerchange', update); el('cmp-b').addEventListener('pickerchange', update); update();
+  }
+  function rideCompareHtml(a,b){
+    const pa=a.pulse||{}, pb=b.pulse||{}; const stressDiff = safeNum(pb.fuelStress)-safeNum(pa.fuelStress); const better = stressDiff>8 ? 'Ride A lebih irit/smooth' : stressDiff<-8 ? 'Ride B lebih irit/smooth' : 'Keduanya mirip';
+    return `<div class="compare-grid"><div>${rideCompareCard('Ride A',a)}</div><div>${rideCompareCard('Ride B',b)}</div></div><div class="ai-insight"><b>${better}</b><br>Selisih fuel stress ${Math.abs(Math.round(stressDiff))}/100. Bandingin juga stop-go dan speed spike buat tahu rute/gaya mana lebih boros.</div>`;
+  }
+  function rideCompareCard(label,r){ const p=r.pulse||{}; return `<article class="compare-card"><b>${label}</b><small>${esc(r.name||'Ride')} · ${fmt.date(r.ts)}</small><div class="ride-card-stats"><div><b>${fmt.km(r.distance)}</b><small>Jarak</small></div><div><b>${p.fuelStress ?? '—'}</b><small>Stress</small></div><div><b>${p.smoothScore ?? '—'}%</b><small>Smooth</small></div></div></article>`; }
   function renderAll(){ renderHome(); renderGarage(); renderRide(); renderFuel(); renderAI(); hydrateIcons(); }
 
   function openProfileSheet(){
@@ -1652,7 +1945,7 @@
       'save-style': saveStyle,
       'save-link': saveLink,
       'save-expense': saveExpense,
-      'tracker-start': () => startGpsWarmup(getPickerValue('ride-mode-picker') || 'ride'),
+      'tracker-start': () => { pendingRidePurpose = getPickerValue('ride-purpose-picker') || 'Harian'; pendingTouringMode = !!el('ride-touring-check')?.checked; startGpsWarmup(getPickerValue('ride-mode-picker') || 'ride'); },
       'tracker-pause': pauseTracker,
       'tracker-stop': stopTracker,
       'warmup-start': () => beginTrackerFromWarmup(false),
@@ -1663,8 +1956,31 @@
       'log-ride-only': () => saveRide(false),
       'save-ride-km': () => saveRide(true),
       'place': openPlaceSheet,
-      'save-place': savePlace
+      'save-place': savePlace,
+      'daily-km': openDailyKmSheet,
+      'daily-km-custom-save': () => saveDailyKm(el('daily-km-custom').value),
+      'road-assist': openRoadAssistSheet,
+      'fi-helper': openFiHelperSheet,
+      'save-fi-log': saveFiLog,
+      'emergency': openEmergencySheet,
+      'save-emergency': saveEmergency,
+      'touring-mode': openTouringModeSheet,
+      'save-touring-check': saveTouringCheck,
+      'problem-diary': openProblemDiarySheet,
+      'ride-compare': openRideCompareSheet,
+      'toolbox': () => openToolboxSheet(),
+      'settings': openSettingsSheet,
+      'save-settings': saveSettings,
+      'quick-add-settings': openQuickAddSettings,
+      'save-quick-adds': saveQuickAdds,
+      'export-data': exportData,
+      'import-data': () => el('import-file').click(),
+      'reset-data': resetData
     };
+    if(a === 'daily-km-add') return saveDailyKm(target.dataset.km);
+    if(a === 'run-quick') return runQuickAdd(target.dataset.quick);
+    if(a === 'toolbox-edit') return openToolboxSheet(target.dataset.id);
+    if(a === 'save-toolbox') return saveToolbox(target.dataset.id || '');
     if(a === 'view-ride') return openRideDetail(target.dataset.id);
     if(a === 'pick-photo') return el(target.dataset.target)?.click();
     if(a === 'ai-model-preset'){ el('ai-model').value = target.dataset.model || DEFAULT_AI_MODEL; return saveAISettings(); }

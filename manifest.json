@@ -1,7 +1,7 @@
 {
-  "name": "NGR Smart Garage OS Ride Summary",
-  "short_name": "NGR Ride",
-  "description": "NGR Smart Garage OS: health dashboard, garage, fuel, AI Kang Rusdi, GPS calibration, speedometer, Ride Summary Map, route memory, dan Ride Pulse.",
+  "name": "NGR v5 Smart Daily Garage",
+  "short_name": "NGR v5",
+  "description": "NGR v5 Smart Daily Garage: Road Assist, Touring Mode, FI code helper, daily KM, toolbox, settings, fuel, ride, AI Kang Rusdi.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

@@ -1,5 +1,3 @@
-# NGR Smart Garage OS v4.9
+# NGR v5 Smart Daily Garage
 
-Update: Fuel Balance Chart — grafik isi BBM naik dan otomatis turun saat ride motor disimpan ke Virtual KM.
-
-Build APK: Actions > Build NGR APK > Run workflow.
+Road Assist, Touring Mode, FI Code Helper, Toolbox, Settings, Daily KM, Ride Compare, Fuel, AI Kang Rusdi.
