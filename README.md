@@ -1,3 +1,5 @@
-# NGR v5.1 Fuel Calibration
+NGR Garage APK Build v5.3 Background Ride Beta
 
-Upload this repository to GitHub, then open Actions > Build NGR APK > Run workflow.
+Upload to GitHub, run Actions > Build NGR APK.
+
+Background Ride uses native background geolocation notification on Android. Allow location and notification permissions.

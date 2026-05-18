@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v5-1-fuel-calibration';
+const CACHE_NAME = 'ngr-v5-3-backup-export-fix';
 const CORE_ASSETS = [
   './',
   './index.html',

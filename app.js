@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5.1;
+  const VERSION = 5.2;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -1284,7 +1284,7 @@
       </div>
       <div class="gps-rules">
         <b>${isWalk ? 'Walk Test aktif' : 'Ride Mode aktif'}</b>
-        <small>${isWalk ? 'Cocok buat cek GPS sambil jalan kaki. Hasil default log saja.' : 'Kalau diam/kasir/kasur, drift tetap ditahan. Kalau macet/merayap, gerakan valid tetap dihitung.'}</small>
+        <small>${isWalk ? 'Cocok buat cek GPS sambil jalan kaki. Hasil default log saja.' : 'Kalau Background Mode aktif, HP boleh dikunci dan tracking tetap dibantu notifikasi. Jangan force close app.'}</small>
       </div>
       <div class="pulse-grid" id="trk-pulse" style="display:none"></div>
       <input id="ride-photo" type="file" accept="image/*" capture="environment" hidden />
@@ -1309,6 +1309,24 @@
     return clamp(Math.max(30, (accA + accB) * .72), 30, 70);
   }
   function rawSpeedKmh(coords){ return coords.speed != null && coords.speed >= 0 ? coords.speed * 3.6 : NaN; }
+  function bgGeoPlugin(){ return window.Capacitor?.Plugins?.BackgroundGeolocation || null; }
+  function isNativeApp(){ try{ return !!window.Capacitor && (!window.Capacitor.isNativePlatform || window.Capacitor.isNativePlatform()); }catch{ return false; } }
+  function normalizeBgLocation(location){
+    if(!location) return null;
+    const lat = location.latitude ?? location.lat ?? location.coords?.latitude;
+    const lon = location.longitude ?? location.lng ?? location.lon ?? location.coords?.longitude;
+    if(lat == null || lon == null) return null;
+    return {
+      coords:{ latitude:lat, longitude:lon, accuracy: location.accuracy ?? location.coords?.accuracy ?? 999, speed: location.speed ?? location.coords?.speed ?? null },
+      timestamp: location.time ?? location.timestamp ?? Date.now()
+    };
+  }
+  function rideTrackingNotice(){
+    if(tracker?.bgWatcherId){
+      return 'Background Ride aktif: boleh matiin layar. Jangan force close app. Stop dari NGR kalau sudah selesai.';
+    }
+    return 'Foreground Ride aktif: biar aman jangan lock layar. Kalau Background Mode gagal, tracking bisa berhenti saat layar mati.';
+  }
   function gpsTuning(){ const s = state.settings?.gpsSensitivity || 'normal'; return s==='santai' ? {move:.72, acc:1.18, speed:.78} : s==='ketat' ? {move:1.28, acc:.82, speed:1.18} : {move:1, acc:1, speed:1}; }
   function movementGate(ref,p,d,dt,speedKmh,raw){
     const mode = tracker?.mode === 'walk' ? 'walk' : 'ride';
@@ -1401,64 +1419,36 @@
     if(!navigator.geolocation) return toast('GPS tidak tersedia', 'err');
     mode = mode === 'walk' ? 'walk' : 'ride';
     renderTrackingSheet(forceStart, mode);
-    tracker = {watchId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], previewRoute:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode, purpose: pendingRidePurpose || 'Harian', touring: !!pendingTouringMode};
-    tracker.watchId = navigator.geolocation.watchPosition(pos=>{
-      if(!tracker || tracker.paused) return;
-      const c = pos.coords;
-      const raw = rawSpeedKmh(c);
-      const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:0, rawSpeedKmh:raw, seg:'normal'};
-      const tune = gpsTuning();
-      const maxAcc = (tracker.mode === 'walk' ? (tracker.forceStart ? 110 : 85) : (tracker.forceStart ? 100 : 75)) * tune.acc;
-      if(p.acc > maxAcc){ tracker.bad++; tracker.lastRaw = p; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), tunggu sinyal stabil`; updateTrackerUI(); return; }
-      if(!tracker.anchor){ tracker.anchor = p; tracker.lastRaw = p; tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m · belum hitung jarak`; updateTrackerUI(); return; }
+    tracker = {watchId:null, bgWatcherId:null, start:Date.now(), paused:false, pauseStart:0, pausedMs:0, anchor:warmFix || null, lastAccepted:null, lastRaw:warmFix || null, pending:[], distance:0, movingMs:0, maxSpeed:0, currentSpeed:0, bad:0, points:0, ignored:0, spikeIgnored:0, stopMs:0, gpsNote:mode === 'walk' ? 'Walk Test · jalan pelan boleh' : (forceStart ? 'Low Signal Mode · menunggu gerakan valid' : 'Ride Mode · GPS siap, jalan sekarang'), route:[], previewRoute:[], checkpoints:[], tick:null, forceStart:!!forceStart, mode, purpose: pendingRidePurpose || 'Harian', touring: !!pendingTouringMode};
+  function processTrackerPosition(pos){
+    if(!tracker || tracker.paused || !pos?.coords) return;
+    const c = pos.coords;
+    const raw = rawSpeedKmh(c);
+    const p = {lat:c.latitude, lon:c.longitude, ts:pos.timestamp || Date.now(), acc:c.accuracy || 999, speedKmh:0, rawSpeedKmh:raw, seg:'normal'};
+    const tune = gpsTuning();
+    const maxAcc = (tracker.mode === 'walk' ? (tracker.forceStart ? 110 : 85) : (tracker.forceStart ? 100 : 75)) * tune.acc;
+    if(p.acc > maxAcc){ tracker.bad++; tracker.lastRaw = p; tracker.gpsNote = `GPS lemah (${Math.round(p.acc)}m), tunggu sinyal stabil`; updateTrackerUI(); return; }
+    if(!tracker.anchor){ tracker.anchor = p; tracker.lastRaw = p; tracker.gpsNote = `GPS lock ±${Math.round(p.acc)}m · belum hitung jarak`; updateTrackerUI(); return; }
 
-      const ref = tracker.lastAccepted || tracker.anchor;
-      const d = haversine(ref, p);
-      const dt = Math.max(.001, (p.ts - ref.ts)/1000);
-      const derivedSpeed = (d/dt)*3.6;
-      const speedKmh = Number.isFinite(raw) && raw > 1 ? raw : derivedSpeed;
+    const ref = tracker.lastAccepted || tracker.anchor;
+    const d = haversine(ref, p);
+    const dt = Math.max(.001, (p.ts - ref.ts)/1000);
+    const derivedSpeed = (d/dt)*3.6;
+    const speedKmh = Number.isFinite(raw) && raw > 1 ? raw : derivedSpeed;
 
-      if(!movementGate(ref, p, d, dt, speedKmh, raw)){
-        if(!tracker.lastAccepted && movementCandidate(ref, p, d, dt, speedKmh, raw)){
-          tracker.pending.push(p);
-          pushPreviewPoint(p);
-          const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
-          tracker.gpsNote = `Gerak dashboard terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
-          const isWalkMode = tracker.mode === 'walk';
-          const enoughDistance = pendingMeters >= (isWalkMode ? 5 : (tracker.forceStart ? 7 : 8));
-          const enoughPoints = tracker.pending.length >= 2 && pendingMeters >= (isWalkMode ? 4 : 6);
-          const strongSpeed = speedKmh >= (isWalkMode ? 2.5 : 4) && d >= (isWalkMode ? 2.5 : 3);
-          if(enoughDistance || enoughPoints || strongSpeed){
-            const first = tracker.pending[0];
-            first.speedKmh = safeNum(first.speedKmh || first.rawSpeedKmh || 0); first.seg = 'normal';
-            tracker.lastAccepted = first; tracker.route.push(first); tracker.points++;
-            for(const nxt of tracker.pending.slice(1)){
-              const prev = tracker.lastAccepted;
-              const dd = haversine(prev, nxt);
-              const ddT = Math.max(.001, (nxt.ts - prev.ts)/1000);
-              const sp = Number.isFinite(nxt.rawSpeedKmh) && nxt.rawSpeedKmh > 1 ? nxt.rawSpeedKmh : (dd/ddT)*3.6;
-              if(dd >= 3 && sp < 115) addAcceptedPoint(nxt, prev, dd, ddT, sp);
-            }
-            tracker.gpsNote = 'Moving confirmed · jarak mulai dihitung';
-          }
-          tracker.lastRaw = p;
-          updateTrackerUI();
-          return;
-        }
-        const why = tracker.lastAccepted ? `Idle / drift ${Math.round(d)}m diabaikan` : `Belum gerak valid · drift ${Math.round(d)}m diabaikan`;
-        ignoreAsDrift(p, why);
-        updateTrackerUI();
-        return;
-      }
-
-      if(!tracker.lastAccepted){
+    if(!movementGate(ref, p, d, dt, speedKmh, raw)){
+      if(!tracker.lastAccepted && movementCandidate(ref, p, d, dt, speedKmh, raw)){
         tracker.pending.push(p);
         pushPreviewPoint(p);
         const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
-        tracker.gpsNote = `Gerakan terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
-        if(tracker.pending.length >= 2 || pendingMeters >= (tracker.mode === 'walk' ? 6 : 10) || d >= 45){
+        tracker.gpsNote = `Gerak dashboard terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
+        const isWalkMode = tracker.mode === 'walk';
+        const enoughDistance = pendingMeters >= (isWalkMode ? 5 : (tracker.forceStart ? 7 : 8));
+        const enoughPoints = tracker.pending.length >= 2 && pendingMeters >= (isWalkMode ? 4 : 6);
+        const strongSpeed = speedKmh >= (isWalkMode ? 2.5 : 4) && d >= (isWalkMode ? 2.5 : 3);
+        if(enoughDistance || enoughPoints || strongSpeed){
           const first = tracker.pending[0];
-          first.speedKmh = 0; first.seg = 'normal';
+          first.speedKmh = safeNum(first.speedKmh || first.rawSpeedKmh || 0); first.seg = 'normal';
           tracker.lastAccepted = first; tracker.route.push(first); tracker.points++;
           for(const nxt of tracker.pending.slice(1)){
             const prev = tracker.lastAccepted;
@@ -1473,13 +1463,67 @@
         updateTrackerUI();
         return;
       }
+      const why = tracker.lastAccepted ? `Idle / drift ${Math.round(d)}m diabaikan` : `Belum gerak valid · drift ${Math.round(d)}m diabaikan`;
+      ignoreAsDrift(p, why);
+      updateTrackerUI();
+      return;
+    }
 
-      const ok = d < 180 && speedKmh < 115 && p.acc <= (tracker.forceStart ? 70 : 55) && d >= 3;
-      if(ok) addAcceptedPoint(p, tracker.lastAccepted, d, dt, speedKmh);
-      else { tracker.bad++; ignoreAsDrift(p, d >= 180 ? 'GPS loncat dibuang' : 'GPS kurang stabil'); }
+    if(!tracker.lastAccepted){
+      tracker.pending.push(p);
+      pushPreviewPoint(p);
+      const pendingMeters = pendingPathMeters(tracker.anchor, tracker.pending);
+      tracker.gpsNote = `Gerakan terdeteksi ${Math.round(pendingMeters)}m · konfirmasi ${tracker.pending.length}/3`;
+      if(tracker.pending.length >= 2 || pendingMeters >= (tracker.mode === 'walk' ? 6 : 10) || d >= 45){
+        const first = tracker.pending[0];
+        first.speedKmh = 0; first.seg = 'normal';
+        tracker.lastAccepted = first; tracker.route.push(first); tracker.points++;
+        for(const nxt of tracker.pending.slice(1)){
+          const prev = tracker.lastAccepted;
+          const dd = haversine(prev, nxt);
+          const ddT = Math.max(.001, (nxt.ts - prev.ts)/1000);
+          const sp = Number.isFinite(nxt.rawSpeedKmh) && nxt.rawSpeedKmh > 1 ? nxt.rawSpeedKmh : (dd/ddT)*3.6;
+          if(dd >= 3 && sp < 115) addAcceptedPoint(nxt, prev, dd, ddT, sp);
+        }
+        tracker.gpsNote = 'Moving confirmed · jarak mulai dihitung';
+      }
       tracker.lastRaw = p;
       updateTrackerUI();
-    }, err=>toast('GPS: ' + err.message, 'err'), {enableHighAccuracy:true, maximumAge:500, timeout:12000});
+      return;
+    }
+
+    const ok = d < 180 && speedKmh < 115 && p.acc <= (tracker.forceStart ? 70 : 55) && d >= 3;
+    if(ok) addAcceptedPoint(p, tracker.lastAccepted, d, dt, speedKmh);
+    else { tracker.bad++; ignoreAsDrift(p, d >= 180 ? 'GPS loncat dibuang' : 'GPS kurang stabil'); }
+    tracker.lastRaw = p;
+    updateTrackerUI();
+  }
+  async function startTrackerWatch(){
+    const bg = bgGeoPlugin();
+    if(bg && isNativeApp() && tracker?.mode !== 'walk'){
+      try{
+        tracker.bgWatcherId = await bg.addWatcher({
+          backgroundTitle: 'NGR Ride aktif',
+          backgroundMessage: 'Tracking ride berjalan. Tap untuk kembali ke NGR.',
+          requestPermissions: true,
+          stale: false,
+          distanceFilter: 5
+        }, (location, error) => {
+          if(error){ tracker.gpsNote = 'Background GPS: ' + (error.message || error); updateTrackerUI(); return; }
+          const pos = normalizeBgLocation(location);
+          if(pos) processTrackerPosition(pos);
+        });
+        tracker.gpsNote = 'Background Ride aktif · boleh matiin layar';
+        toast('Background Ride aktif: notifikasi jalan');
+        return;
+      }catch(e){
+        tracker.gpsNote = 'Background mode gagal, fallback foreground';
+        toast('Background GPS gagal, fallback biasa', 'err');
+      }
+    }
+    tracker.watchId = navigator.geolocation.watchPosition(pos=>processTrackerPosition(pos), err=>toast('GPS: ' + err.message, 'err'), {enableHighAccuracy:true, maximumAge:500, timeout:12000});
+  }
+    startTrackerWatch();
     tracker.tick = setInterval(()=>updateTrackerUI(), 1000);
     $('#trk-actions').innerHTML = `<button class="cancel-btn" data-action="tracker-pause">Pause</button><button class="cancel-btn" data-action="ride-checkpoint">+ Foto</button><button class="save-btn" data-action="tracker-stop">Stop</button>`;
     toast(forceStart ? 'Ride Lite dimulai: Low Signal' : 'GPS tracking siap. Jalan sekarang');
@@ -1526,7 +1570,7 @@
     toast('Foto lokasi masuk checkpoint');
   }
   function stopTracker(){
-    if(!tracker) return; if(tracker.watchId != null) navigator.geolocation.clearWatch(tracker.watchId); clearInterval(tracker.tick);
+    if(!tracker) return; if(tracker.watchId != null) navigator.geolocation.clearWatch(tracker.watchId); if(tracker.bgWatcherId && bgGeoPlugin()){ try{ bgGeoPlugin().removeWatcher({id: tracker.bgWatcherId}); }catch{} } clearInterval(tracker.tick);
     const dur=trackerDuration(), km=tracker.distance/1000, avg=trackerAvgSpeed(), max=tracker.maxSpeed;
     const mode = tracker.mode || 'ride';
     const badRatio = tracker.bad / Math.max(1, tracker.bad + tracker.points); let detect='Suspicious', msg='Data agak nanggung, review dulu sebelum masuk KM.';
@@ -1761,7 +1805,77 @@
     }catch(e){ state.ai.chat[state.ai.chat.length-1] = {role:'assistant', content:'⚠️ ' + (e.message || e)}; save(); renderAI(); }
   }
 
-  function exportData(){ state.settings = state.settings || {}; state.settings.backupLast = Date.now(); save(); const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ngr-health-backup.json'; a.click(); URL.revokeObjectURL(a.href); }
+  function backupFileName(){
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    return `ngr-backup-v${VERSION}-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}.json`;
+  }
+  function buildBackupJson(){
+    state.settings = state.settings || {};
+    state.settings.backupLast = Date.now();
+    state.version = VERSION;
+    save();
+    return JSON.stringify(state, null, 2);
+  }
+  async function shareBackupJson(json, name){
+    if(!json) json = window.__ngrLastBackupJson || buildBackupJson();
+    if(!name) name = window.__ngrLastBackupName || backupFileName();
+    try{
+      const file = new File([json], name, {type:'application/json'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        await navigator.share({files:[file], title:'Backup NGR JSON', text:'Backup data NGR'});
+        toast('Backup siap dibagikan/disimpan');
+        return true;
+      }
+    }catch(e){ console.warn('Share backup gagal', e); }
+    return false;
+  }
+  function downloadBackupJson(json, name){
+    if(!json) json = window.__ngrLastBackupJson || buildBackupJson();
+    if(!name) name = window.__ngrLastBackupName || backupFileName();
+    try{
+      const blob = new Blob([json], {type:'application/json;charset=utf-8'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.rel = 'noopener'; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 30000);
+      toast('Download backup dimulai. Kalau tidak muncul, pakai Copy JSON.');
+      return true;
+    }catch(e){ console.warn('Download backup gagal', e); toast('Download gagal, pakai Copy JSON','err'); return false; }
+  }
+  function openBackupExportSheet(json, name){
+    window.__ngrLastBackupJson = json || buildBackupJson();
+    window.__ngrLastBackupName = name || backupFileName();
+    const sizeKb = (new Blob([window.__ngrLastBackupJson]).size / 1024).toFixed(1);
+    openSheet(`${sheetTitle('Export JSON Backup', 'APK/WebView kadang blok download blob. Pakai Share atau Copy JSON kalau tombol download tidak jalan.')}
+      <div class="notice ok"><b>Backup ready</b><br><small>${esc(window.__ngrLastBackupName)} · ${sizeKb} KB</small></div>
+      <div class="utility-row"><button class="ghost-btn" data-action="download-json">Download</button><button class="ghost-btn" data-action="share-json">Share/Save</button><button class="ghost-btn" data-action="copy-json">Copy JSON</button></div>
+      <label class="field"><span>Manual backup JSON</span><textarea id="backup-json-text" class="backup-textarea" rows="8" readonly>${esc(window.__ngrLastBackupJson)}</textarea></label>
+      <div class="notice warn"><b>Tips aman update APK</b><br><small>Kalau download tidak muncul di APK, tap Copy JSON lalu paste ke Notes/WA/Telegram/Drive sebagai file teks. Saat import, pakai file JSON dari backup tadi.</small></div>
+      <div class="form-actions"><button class="save-btn" data-action="close-sheet">Selesai</button></div>`);
+  }
+  async function exportData(){
+    const json = buildBackupJson();
+    const name = backupFileName();
+    window.__ngrLastBackupJson = json; window.__ngrLastBackupName = name;
+    const shared = await shareBackupJson(json, name);
+    if(!shared) downloadBackupJson(json, name);
+    openBackupExportSheet(json, name);
+    renderAll();
+  }
+  async function copyBackupJson(){
+    const json = window.__ngrLastBackupJson || buildBackupJson();
+    const ta = el('backup-json-text');
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText){ await navigator.clipboard.writeText(json); toast('JSON backup disalin'); return; }
+    }catch(e){ console.warn('Clipboard API gagal', e); }
+    if(ta){ ta.focus(); ta.select(); try{ document.execCommand('copy'); toast('JSON backup disalin'); }catch(e){ toast('Copy gagal, select manual teksnya','err'); } }
+  }
+  async function shareLastBackup(){
+    const ok = await shareBackupJson(window.__ngrLastBackupJson, window.__ngrLastBackupName);
+    if(!ok) toast('Share file tidak didukung. Pakai Download atau Copy JSON.','err');
+  }
   function importData(file){ const r=new FileReader(); r.onload=()=>{ try{ const data=JSON.parse(r.result); if(!data.profile) throw new Error('File bukan backup NGR'); state = {...createDefaultState(), ...data, version:VERSION}; save(); toast('Backup berhasil diimport'); renderAll(); }catch(e){ toast('Import gagal: '+e.message,'err'); } }; r.readAsText(file); }
   function resetData(){ if(confirm('Reset semua data NGR v2?')){ localStorage.removeItem(LS_KEY); state=createDefaultState(); save(); renderAll(); toast('Data direset'); } }
 
@@ -2019,6 +2133,9 @@
       'quick-add-settings': openQuickAddSettings,
       'save-quick-adds': saveQuickAdds,
       'export-data': exportData,
+      'download-json': () => downloadBackupJson(),
+      'share-json': shareLastBackup,
+      'copy-json': copyBackupJson,
       'import-data': () => el('import-file').click(),
       'reset-data': resetData
     };
