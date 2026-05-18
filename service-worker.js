@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ngr-v5-smart-daily-garage';
+const CACHE_NAME = 'ngr-v5-1-fuel-calibration';
 const CORE_ASSETS = [
   './',
   './index.html',

@@ -1,3 +1,3 @@
-# NGR v5 Smart Daily Garage
+# NGR v5.1 Fuel Calibration
 
-Road Assist, Touring Mode, FI Code Helper, Toolbox, Settings, Daily KM, Ride Compare, Fuel, AI Kang Rusdi.
+Upload this repository to GitHub, then open Actions > Build NGR APK > Run workflow.

@@ -1,6 +1,6 @@
 {
   "name": "ngr-garage",
-  "version": "3.4.0",
+  "version": "5.1.0",
   "private": true,
   "dependencies": {
     "@capacitor/android": "6.1.2",

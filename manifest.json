@@ -1,7 +1,7 @@
 {
-  "name": "NGR v5 Smart Daily Garage",
-  "short_name": "NGR v5",
-  "description": "NGR v5 Smart Daily Garage: Road Assist, Touring Mode, FI code helper, daily KM, toolbox, settings, fuel, ride, AI Kang Rusdi.",
+  "name": "NGR v5.1.1 Fuel Calibration",
+  "short_name": "NGR v5.1",
+  "description": "NGR v5.1.1 Fuel Calibration: Road Assist, Touring Mode, FI code helper, daily KM, toolbox, settings, fuel, ride, AI Kang Rusdi.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

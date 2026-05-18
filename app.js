@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const VERSION = 5.0;
+  const VERSION = 5.1;
   const $ = (q, c = document) => c.querySelector(q);
   const $$ = (q, c = document) => [...c.querySelectorAll(q)];
   const el = id => document.getElementById(id);
@@ -83,6 +83,12 @@
     {id:'pertamax', name:'Pertamax', price:12300, color:'#2d8cff'},
     {id:'shell-super', name:'Shell Super', price:13370, color:'#ff9f43'}
   ];
+
+  const DEFAULT_KML = 55;
+  const MIN_FUEL_CALIBRATION_KM = 20;
+  const MIN_FUEL_CALIBRATION_L = 0.5;
+  const MIN_DISPLAY_REAL_KM = 10;
+
 
   const DEFAULT_AI_BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
   const DEFAULT_AI_MODEL = 'openrouter/free';
@@ -206,6 +212,7 @@
   if(!state.quickAdds) state.quickAdds = ['fuel-pertalite-1','km-5','service-oil','road-assist'];
   if(!state.settings) state.settings = {gpsSensitivity:'normal', spikeGuardSec:15, minMoveMeter:8, monthlyBudget:{fuel:100000, service:120000, modif:200000}, backupLast:0};
   state.rides = (state.rides || []).map(r => ({route:[], checkpoints:[], pulse:null, purpose:'Harian', touring:false, restMinutes:0, ...r}));
+  if(!safeNum(state.fuelState.kmPerLiter) || safeNum(state.fuelState.kmPerLiter) < 35 || safeNum(state.fuelState.kmPerLiter) > 75) state.fuelState.kmPerLiter = DEFAULT_KML;
   if(!state.version || state.version < VERSION){ state.version = VERSION; save(); }
   function save(){ setLS(LS_KEY, state); }
 
@@ -281,9 +288,10 @@
     return {pct, status: statusFromPct(pct)};
   }
   function fuelHealth(){
-    const k = safeNum(state.fuelState.kmPerLiter) || 55;
+    const k = kmlForEstimate();
+    const cal = fuelCalibration();
     const pct = k >= 50 ? 100 : k >= 45 ? 85 : k >= 40 ? 70 : k >= 35 ? 50 : 30;
-    return {pct, status: statusFromPct(pct)};
+    return {pct: cal.ready ? pct : Math.max(82, pct), status: statusFromPct(cal.ready ? pct : 88), kml:k, calibration:cal};
   }
   function statusFromPct(p){ if(p <= 20) return 'danger'; if(p <= 55) return 'warn'; return 'ok'; }
   function colorFromPct(p){ if(p <= 20) return 'var(--red)'; if(p <= 40) return 'var(--orange)'; if(p <= 65) return 'var(--yellow)'; if(p <= 80) return 'var(--lime)'; return 'var(--green)'; }
@@ -294,6 +302,36 @@
     return b.score;
   }
   function avg(arr, fallback=100){ return arr && arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : fallback; }
+
+  function fuelCalibration(){
+    const fills = (state.fuels || []).slice().sort((a,b)=>safeNum(a.ts)-safeNum(b.ts));
+    let totalKm = 0;
+    let totalLiters = 0;
+    let cycles = 0;
+    for(let i=1;i<fills.length;i++){
+      const prev = fills[i-1];
+      const cur = fills[i];
+      const dist = Math.max(0, safeNum(cur.km) - safeNum(prev.km));
+      const liters = safeNum(prev.liters);
+      if(dist >= 3 && liters > 0){ totalKm += dist; totalLiters += liters; cycles++; }
+    }
+    const rawKml = totalLiters > 0 ? totalKm / totalLiters : 0;
+    const ready = totalKm >= MIN_FUEL_CALIBRATION_KM && totalLiters >= MIN_FUEL_CALIBRATION_L && rawKml >= 25 && rawKml <= 85;
+    const kml = ready ? clamp(rawKml, 30, 75) : DEFAULT_KML;
+    return {ready, kml, rawKml, totalKm, totalLiters, cycles};
+  }
+  function kmlForEstimate(){
+    const c = fuelCalibration();
+    if(c.ready) return c.kml;
+    const saved = safeNum(state.fuelState.kmPerLiter);
+    return saved >= 35 && saved <= 75 ? saved : DEFAULT_KML;
+  }
+  function fuelConfidenceLabel(){
+    const c = fuelCalibration();
+    if(c.ready) return `kalibrasi real · ${fmt.km(c.totalKm)} / ${fmt.liter(c.totalLiters)}`;
+    if(c.totalKm > 0 || c.totalLiters > 0) return `kalibrasi belum cukup · ${fmt.km(c.totalKm)} / ${fmt.liter(c.totalLiters)}`;
+    return 'estimasi default Beat FI';
+  }
   function monthExpenses(category=null){
     return (state.expenses || []).filter(e => (!category || e.category === category) && monthFilter(e.ts)).reduce((a,b)=>a+safeNum(b.amount),0);
   }
@@ -335,7 +373,7 @@
     if(pulse && pulse.stress >= 55) list.push({tone:'warn', icon:'ride', title:'Riding agak boros', sub:`Fuel Stress rata-rata ${pulse.stress}/100. Gas lebih smooth biar fuel turun.`, action:'ride'});
     if(pulse && pulse.smooth < 70) list.push({tone:'warn', icon:'speed', title:'Smooth score perlu naik', sub:`Rata-rata smooth ${pulse.smooth}%. Hindari stop-go dan speed spike.`, action:'ride'});
     const fuel = fuelHealth();
-    if(fuel.pct < 88) list.push({tone:fuel.status, icon:'fuel', title:'Pantau konsumsi BBM', sub:`Saat ini ${Math.round(state.fuelState.kmPerLiter || 0)} km/L. Bandingkan dengan ride log.`, action:'fuel'});
+    if(fuel.pct < 88) list.push({tone:fuel.status, icon:'fuel', title:'Pantau konsumsi BBM', sub:`Saat ini ${Math.round(kmlForEstimate())} km/L. ${fuelConfidenceLabel()}.`, action:'fuel'});
     const urgent = state.serviceComponents.map(c=>({c,h:serviceHealth(c)})).filter(x=>x.h.pct<25).sort((a,b)=>a.h.pct-b.h.pct)[0];
     if(urgent) list.push({tone:'danger', icon:urgent.c.icon, title:`Jangan modif dulu: ${urgent.c.name}`, sub:`Estimasi service ${fmt.rp(urgent.c.estimate)} lebih prioritas dari wishlist.`, action:'garage'});
     const monthSpend = monthExpenses();
@@ -404,7 +442,7 @@
     const rows = [
       ['Service', b.service, `${state.serviceComponents.length} komponen`, 'wrench'],
       ['Bike Check', b.check, `${state.bikeChecks.filter(p=>p.status!=='ok').length} part perlu cek`, 'brake'],
-      ['Fuel', b.fuel, `${Math.round(state.fuelState.kmPerLiter || 0)} km/L`, 'fuel'],
+      ['Fuel', b.fuel, `${Math.round(kmlForEstimate())} km/L`, 'fuel'],
       ['Ride Style', b.ride, b.pulse ? `Smooth ${b.pulse.smooth}% · Stress ${b.pulse.stress}` : 'belum ada ride', 'ride'],
       ['Budget', b.budget, `${fmt.rp(b.monthSpend)} bulan ini`, 'money']
     ];
@@ -419,7 +457,7 @@
     box.innerHTML = [
       renderMetricCard('Health 2.0', b.score+'%', b.urgentCount ? `${b.urgentCount} urgent` : 'smart score', b.score<55?'danger':b.score<78?'warn':'ok'),
       renderMetricCard('Bulan Ini', fmt.rp(b.monthSpend), rideKm ? `${fmt.rp(costKm)}/km` : 'belum ada ride', 'ok'),
-      renderMetricCard('Fuel Real', Math.round(state.fuelState.kmPerLiter||0)+' km/L', `${fmt.liter(state.fuelState.liters)} tersisa`, b.fuel<70?'warn':'ok')
+      renderMetricCard('Fuel Est.', Math.round(kmlForEstimate())+' km/L', `${fmt.liter(state.fuelState.liters)} tersisa · ${fuelCalibration().ready?'real':'kalibrasi'}`, b.fuel<70?'warn':'ok')
     ].join('');
   }
   function smartTimeline(limit=50){
@@ -452,22 +490,25 @@
       <div class="budget-advice"><b>${mode}</b><small>${urgentCost?`Siapkan minimal ${fmt.rp(urgentCost)} buat komponen soon/urgent.`:'Kalau mau beli part, tetap sisihin dana fuel dan service.'}</small></div>`;
   }
   function fuelIntelStats(){
-    const ridesKm = (state.rides||[]).slice(0,20).reduce((a,b)=>a+safeNum(b.distance),0);
-    const fuelLiters = (state.fuels||[]).slice(0,20).reduce((a,b)=>a+safeNum(b.liters),0);
-    const realKml = fuelLiters>0 && ridesKm>0 ? ridesKm/fuelLiters : safeNum(state.fuelState.kmPerLiter)||55;
+    const cal = fuelCalibration();
+    const realKml = cal.kml;
+    const ridesKm = cal.totalKm;
+    const fuelLiters = cal.totalLiters;
     const pulse = latestPulse();
     const weeklyKm = monthRideKm()/Math.max(1,(new Date().getDate()/7));
-    const weeklyFuelCost = weeklyKm / Math.max(1,realKml) * (state.fuelSettings?.prices?.pertalite || 10000);
-    return {realKml, ridesKm, fuelLiters, pulse, weeklyFuelCost};
+    const weeklyFuelCost = weeklyKm > 0 ? weeklyKm / Math.max(1,realKml) * (state.fuelSettings?.prices?.pertalite || 10000) : 0;
+    return {realKml, ridesKm, fuelLiters, pulse, weeklyFuelCost, calibration:cal};
   }
   function renderFuelIntel(){
     const box = el('fuel-intel-grid'); if(!box) return;
     const f = fuelIntelStats();
     const stress = f.pulse ? f.pulse.stress : 0;
+    const calSub = f.calibration.ready ? `${fmt.km(f.ridesKm)} / ${fmt.liter(f.fuelLiters)}` : `butuh minimal ${MIN_FUEL_CALIBRATION_KM} km data`;
     box.innerHTML = `
-      ${renderMetricCard('Real Avg', Math.round(f.realKml)+' km/L', `${fmt.km(f.ridesKm)} / ${fmt.liter(f.fuelLiters)}`, f.realKml<42?'warn':'ok')}
-      ${renderMetricCard('Prediksi Mingguan', fmt.rp(f.weeklyFuelCost), 'berdasar ride bulan ini', 'ok')}
-      ${renderMetricCard('Fuel Stress', f.pulse?stress+'/100':'—', f.pulse?`Smooth ${f.pulse.smooth}%`:'butuh ride log', stress>60?'warn':'ok')}`;
+      ${renderMetricCard(f.calibration.ready?'Real Avg':'Estimasi Avg', Math.round(f.realKml)+' km/L', calSub, f.calibration.ready && f.realKml<42?'warn':'ok')}
+      ${renderMetricCard('Prediksi Mingguan', f.weeklyFuelCost?fmt.rp(f.weeklyFuelCost):'—', f.weeklyFuelCost?'berdasar ride bulan ini':'butuh ride bulan ini', 'ok')}
+      ${renderMetricCard('Fuel Stress', f.pulse?stress+'/100':'—', f.pulse?`Smooth ${f.pulse.smooth}%`:'butuh ride log', stress>60?'warn':'ok')}
+      ${!f.calibration.ready ? `<div class="ai-insight compact"><b>Kalibrasi Fuel belum valid.</b><br>Data sekarang terlalu pendek, jadi NGR pakai estimasi aman ${DEFAULT_KML} km/L dulu. Angka 20 km/L/1 km/L tidak dipakai sampai data minimal ${MIN_FUEL_CALIBRATION_KM} km.</div>` : ''}`;
   }
   function componentWearHtml(r){
     const d = safeNum(r.distance); const stress = safeNum(r.pulse?.fuelStress);
@@ -521,7 +562,7 @@
       return {kind:'Bike Check', name:p.name, icon:p.icon, pct:h.pct, tone:h.status, score:(100-h.pct)+(p.status==='broken'?45:p.status==='worn'?25:12), sub:partStatusLabel(p.status), go:'check'};
     });
     const fuel = fuelHealth();
-    const fuelItem = fuel.pct < 88 ? [{kind:'Fuel', name:'Konsumsi BBM', icon:'fuel', pct:fuel.pct, tone:fuel.pct<60?'danger':'warn', score:100-fuel.pct+10, sub:`${state.fuelState.kmPerLiter.toFixed(0)} km/L · pantau boros`, go:'fuel'}] : [];
+    const fuelItem = fuel.pct < 88 ? [{kind:'Fuel', name:'Konsumsi BBM', icon:'fuel', pct:fuel.pct, tone:fuel.pct<60?'danger':'warn', score:100-fuel.pct+10, sub:`${Math.round(kmlForEstimate())} km/L · ${fuelCalibration().ready?'real':'kalibrasi'}`, go:'fuel'}] : [];
     return [...svc, ...checks, ...fuelItem].sort((a,b)=>b.score-a.score).slice(0, limit);
   }
   function renderPriorityList(){
@@ -741,8 +782,8 @@
 
   function renderFuel(){
     el('fuel-liters').textContent = fmt.liter(state.fuelState.liters);
-    el('fuel-kml').textContent = (state.fuelState.kmPerLiter || 55).toFixed(0);
-    el('fuel-range').textContent = 'Range ± ' + fmt.km(state.fuelState.liters * state.fuelState.kmPerLiter);
+    el('fuel-kml').textContent = kmlForEstimate().toFixed(0);
+    el('fuel-range').textContent = 'Range ± ' + fmt.km(state.fuelState.liters * kmlForEstimate());
     const monthFuel = state.expenses.filter(e=>e.category==='Fuel' && monthFilter(e.ts)).reduce((a,b)=>a+safeNum(b.amount),0);
     el('fuel-spend-month').textContent = fmt.rp(monthFuel);
     const liters = [1,2,3];
@@ -763,7 +804,7 @@
     const pulse = safeNum(r?.pulse?.fuelLiters);
     if(pulse > 0) return pulse;
     const dist = safeNum(r.distance);
-    const kml = Math.max(1, safeNum(state.fuelState.kmPerLiter) || 55);
+    const kml = Math.max(1, kmlForEstimate());
     return dist > 0 ? dist / kml : 0;
   }
 
@@ -882,7 +923,7 @@
   function addKm(km, source='manual'){
     km = Math.max(0, safeNum(km)); if(!km) return toast('KM belum diisi', 'err');
     state.profile.virtualKm += km;
-    state.fuelState.liters = Math.max(0, state.fuelState.liters - (km / (state.fuelState.kmPerLiter || 55)));
+    state.fuelState.liters = Math.max(0, state.fuelState.liters - (km / kmlForEstimate()));
     state.rides.unshift({id:uid(), source, distance:km, durationMs:0, avgSpeed:0, maxSpeed:0, ts:Date.now(), savedToKm:true});
     save(); closeSheet(); toast(`Virtual KM +${fmt.km(km)}`); renderAll();
   }
@@ -1001,8 +1042,12 @@
     updateKmPerLiter(); save(); closeSheet(); toast('Fuel tersimpan'); renderAll();
   }
   function updateKmPerLiter(){
-    const fs = state.fuels.slice().sort((a,b)=>a.ts-b.ts);
-    if(fs.length >= 2){ const last = fs.at(-1), prev = fs.at(-2); const dist = Math.max(0, last.km - prev.km); if(dist > 0 && prev.liters > 0) state.fuelState.kmPerLiter = clamp(dist / prev.liters, 20, 80); }
+    const cal = fuelCalibration();
+    if(cal.ready){
+      state.fuelState.kmPerLiter = cal.kml;
+    } else if(!safeNum(state.fuelState.kmPerLiter) || safeNum(state.fuelState.kmPerLiter) < 35 || safeNum(state.fuelState.kmPerLiter) > 75){
+      state.fuelState.kmPerLiter = DEFAULT_KML;
+    }
   }
   function openFuelSettings(){
     openSheet(`${sheetTitle('Harga BBM', 'Default bisa kamu edit kapan aja.')}
@@ -1539,7 +1584,7 @@
     const durMin = Math.max(1, durationMs/60000); const hardRate = hard/durMin; const stopPct = durationMs ? stopMs/durationMs : 0;
     const fuelStress = clamp(Math.round(hardRate*22 + push*2 + stopPct*35 + Math.max(0, maxSpeed-65)*.7),0,100);
     const smoothScore = clamp(Math.round(100 - fuelStress*.72 - hard*2.2 - stopPct*12),0,100);
-    const baseKml = state.fuelState.kmPerLiter || 55; const stressPenalty = 1 + fuelStress/170;
+    const baseKml = kmlForEstimate(); const stressPenalty = 1 + fuelStress/170;
     const fuelLiters = distanceKm && baseKml ? distanceKm/baseKml*stressPenalty : 0;
     const fuelCost = fuelLiters * (state.fuelSettings?.prices?.pertalite || 10000);
     return {smoothScore, fuelStress, hardAccel:hard, speedPush:push, stopGoMs:Math.round(stopMs), fuelLiters, fuelCost, validSeg};
@@ -1700,7 +1745,7 @@
   function appContext(){
     const worst = state.serviceComponents.map(c=>({name:c.name, health:serviceHealth(c).pct, left:componentSub(serviceHealth(c))})).sort((a,b)=>a.health-b.health).slice(0,5);
     const bad = state.bikeChecks.filter(p=>p.status!=='ok').slice(0,8).map(p=>`${p.name}: ${partStatusLabel(p.status)}`);
-    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Smart Garage OS Health 2.0: ${healthScore()}%. Smart recommendation: ${buildSmartRecommendations(1)[0]?.title || 'aman'}. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${state.fuelState.kmPerLiter.toFixed(0)} km/L. Budget bulan ini: ${fmt.rp(monthExpenses())}. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Problem diary: ${(state.roadAssist.problemDiary||[]).slice(0,3).map(p=>p.title+': '+p.note).join('; ') || 'kosong'}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia. Jelaskan kalau analisis fuel/ride itu estimasi GPS, bukan ECU asli.`;
+    return `Motor: ${state.profile.name}. Virtual KM: ${fmt.km(state.profile.virtualKm)}. NGR Smart Garage OS Health 2.0: ${healthScore()}%. Smart recommendation: ${buildSmartRecommendations(1)[0]?.title || 'aman'}. Service prioritas: ${worst.map(w=>`${w.name} ${w.health}% (${w.left})`).join('; ')}. Bike check bermasalah: ${bad.join('; ') || 'tidak ada'}. Fuel: ${fmt.liter(state.fuelState.liters)}, ${Math.round(kmlForEstimate())} km/L. Budget bulan ini: ${fmt.rp(monthExpenses())}. Link library: ${getLinkLibrary().slice(0,5).map(l=>`${l.title} (${l.category})`).join('; ') || 'kosong'}. Ride terakhir: ${latestRideContext()}. Problem diary: ${(state.roadAssist.problemDiary||[]).slice(0,3).map(p=>p.title+': '+p.note).join('; ') || 'kosong'}. Jawab sebagai Kang Rusdi, santai, praktis, Bahasa Indonesia. Jelaskan kalau analisis fuel/ride itu estimasi GPS, bukan ECU asli.`;
   }
   async function sendAI(){
     const input = el('ai-input'); const text = input.value.trim(); if(!text) return; if(!state.ai.key) return toast('Isi API Key dulu', 'err');
