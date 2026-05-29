@@ -1,4 +1,4 @@
-name: Build NGR APK
+name: Build NGR v7 APK
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -22,27 +22,66 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Install dependencies
-        run: npm install
+      - name: Show files
+        run: |
+          ls -la
+          test -f index.html
+          test -f style.css
+          test -f app.js
+          test -f manifest.json
+          test -f service-worker.js
+          test -f icon-192.png
+          test -f icon-512.png
 
-      - name: Add Android platform
-        run: npx cap add android
+      - name: Install dependencies
+        run: npm install --legacy-peer-deps
+
+      - name: Prepare web folder
+        run: |
+          rm -rf www
+          mkdir -p www
+          cp index.html www/
+          cp style.css www/
+          cp app.js www/
+          cp manifest.json www/
+          cp service-worker.js www/
+          cp icon-192.png www/
+          cp icon-512.png www/
+
+      - name: Recreate Android platform
+        run: |
+          rm -rf android
+          npx cap add android
 
       - name: Sync web app to Android
         run: npx cap sync android
 
-      - name: Add GPS permissions
+      - name: Add Android permissions
         run: |
-          sed -i '/<application/ i\    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          permissions = [
+              '<uses-permission android:name="android.permission.INTERNET" />',
+              '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+          ]
+          for perm in permissions:
+              if perm not in s:
+                  s = s.replace('<application', f'    {perm}\n    <application', 1)
+          p.write_text(s)
+          print(p.read_text()[:1200])
+          PY
 
       - name: Build debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ngr-debug-apk
+          name: ngr-v7-map-rusdi-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
+          
