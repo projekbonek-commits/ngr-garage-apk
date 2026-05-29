@@ -1,16 +1,16 @@
 {
-  "name": "ngr-premium-maps",
-  "version": "8.0.0",
+  "name": "ngr-neo-html-mapfix",
+  "version": "1.0.0",
+  "description": "NGR Neo HTML Mapfix",
   "private": true,
+  "scripts": {
+    "build": "echo static web app",
+    "sync": "npx cap sync android"
+  },
   "dependencies": {
     "@capacitor/android": "6.1.2",
-    "@capacitor/core": "6.1.2",
-    "@capacitor/local-notifications": "^6.0.0"
+    "@capacitor/cli": "6.1.2",
+    "@capacitor/core": "6.1.2"
   },
-  "devDependencies": {
-    "@capacitor/cli": "6.1.2"
-  },
-  "scripts": {
-    "cap": "cap"
-  }
+  "devDependencies": {}
 }

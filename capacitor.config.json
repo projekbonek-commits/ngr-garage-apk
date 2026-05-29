@@ -1,12 +1,10 @@
 {
-  "appId": "com.projekbonek.ngr",
-  "appName": "NGR Premium",
+  "appId": "com.projekbonek.ngrneo",
+  "appName": "NGR Neo",
   "webDir": "www",
   "bundledWebRuntime": false,
-  "plugins": {
-    "LocalNotifications": {
-      "smallIcon": "ic_stat_icon_config_sample",
-      "iconColor": "#5b8cff"
-    }
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
   }
 }
