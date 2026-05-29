@@ -1,6 +1,12 @@
 {
   "appId": "com.projekbonek.ngr",
-  "appName": "NGR Garage",
+  "appName": "NGR Map Rusdi",
   "webDir": "www",
-  "bundledWebRuntime": false
+  "bundledWebRuntime": false,
+  "plugins": {
+    "LocalNotifications": {
+      "smallIcon": "ic_stat_icon_config_sample",
+      "iconColor": "#5a8dff"
+    }
+  }
 }

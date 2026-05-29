@@ -1,11 +1,11 @@
 {
-  "name": "ngr-garage",
-  "version": "5.3.0",
+  "name": "ngr-map-rusdi",
+  "version": "7.0.0",
   "private": true,
   "dependencies": {
     "@capacitor/android": "6.1.2",
     "@capacitor/core": "6.1.2",
-    "@capacitor-community/background-geolocation": "1.2.26"
+    "@capacitor/local-notifications": "6.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "6.1.2"

@@ -1,25 +1,13 @@
 {
-  "name": "NGR v5.2 Backup Export Fix",
-  "short_name": "NGR v5.2",
-  "description": "NGR v5.2 Backup Export Fix: Road Assist, Touring Mode, FI code helper, daily KM, toolbox, settings, fuel, ride, AI Kang Rusdi.",
+  "name": "NGR Map Rusdi",
+  "short_name": "NGR v7",
   "start_url": "./index.html",
-  "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
-  "background_color": "#080a0f",
-  "theme_color": "#080a0f",
+  "background_color": "#080b12",
+  "theme_color": "#080b12",
+  "description": "NGR v7 manual daily KM, road route planner, fuel, money, Kang Rusdi assist.",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
+    {"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
   ]
 }
