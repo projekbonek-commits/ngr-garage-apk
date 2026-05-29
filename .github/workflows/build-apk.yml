@@ -1,4 +1,4 @@
-name: Build NGR APK
+name: Build NGR v7 APK
 
 on:
   workflow_dispatch:
@@ -23,10 +23,11 @@ jobs:
           java-version: 17
 
       - name: Install dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Prepare web folder
         run: |
+          rm -rf www
           mkdir -p www
           cp index.html www/
           cp style.css www/
@@ -36,24 +37,39 @@ jobs:
           cp icon-192.png www/
           cp icon-512.png www/
 
-      - name: Add Android platform
-        run: npx cap add android
+      - name: Recreate Android platform
+        run: |
+          rm -rf android
+          npx cap add android
 
       - name: Sync web app to Android
         run: npx cap sync android
 
-      - name: Add GPS permissions
+      - name: Add Android permissions
         run: |
-          sed -i '/<application/ i\    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />\n    <uses-feature android:name="android.hardware.location.gps" android:required="false" />' android/app/src/main/AndroidManifest.xml
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/AndroidManifest.xml')
+          s = p.read_text()
+          perms = [
+              '<uses-permission android:name="android.permission.INTERNET" />',
+              '<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />'
+          ]
+          for perm in perms:
+              if perm not in s:
+                  s = s.replace('<application', '    ' + perm + '
+    <application', 1)
+          p.write_text(s)
+          PY
 
       - name: Build debug APK
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: ngr-debug-apk
+          name: ngr-v7-map-rusdi-debug-apk
           path: android/app/build/outputs/apk/debug/*.apk
