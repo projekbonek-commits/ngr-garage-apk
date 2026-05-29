@@ -1,4 +1,4 @@
-const CACHE = 'ngr-v7-map-rusdi-cache-v1';
+const CACHE = 'ngr-v8-premium-map-cache-v1';
 const CORE = ['./','./index.html','./style.css','./app.js','./manifest.json','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(CORE)).then(() => self.skipWaiting()));

@@ -3,27 +3,29 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <meta name="theme-color" content="#080b12" />
+  <meta name="theme-color" content="#05070d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <title>NGR v7 Map Rusdi</title>
+  <title>NGR v8 Premium Maps</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="preconnect" href="https://unpkg.com" />
-  <link rel="preconnect" href="https://tile.openstreetmap.org" />
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.1.1/dist/maplibre-gl.css" />
+  <link rel="preconnect" href="https://tiles.openfreemap.org" />
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="style.css" />
 </head>
-<body>
+<body class="theme-glass">
   <div id="app">
     <header class="topbar">
       <div class="brand">
         <img src="icon-192.png" alt="NGR" />
         <div>
-          <b>NGR Map Rusdi</b>
-          <span id="top-sub">Manual Daily · Road Route · Assist</span>
+          <b>NGR Premium</b>
+          <span id="top-sub">Daily KM · Route Planner · Kang Rusdi</span>
         </div>
       </div>
-      <button class="icon-btn" data-action="settings" aria-label="Settings">⚙</button>
+      <button class="icon-btn" data-action="settings" aria-label="Settings">
+        <svg viewBox="0 0 24 24"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 8.97 3.6 1.7 1.7 0 0 0 10 2.04V2a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 8c.12.35.42.63.8.8.2.08.42.13.65.13H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>
+      </button>
     </header>
 
     <main id="main">
@@ -37,11 +39,11 @@
     <button id="fab" class="fab" aria-label="Quick Add">＋</button>
 
     <nav class="nav">
-      <button class="nav-item active" data-tab="home"><span>⌂</span><small>Home</small></button>
-      <button class="nav-item" data-tab="maps"><span>⌖</span><small>Maps</small></button>
-      <button class="nav-item" data-tab="fuel"><span>⛽</span><small>Fuel</small></button>
-      <button class="nav-item" data-tab="money"><span>💸</span><small>Money</small></button>
-      <button class="nav-item" data-tab="assist"><span>✚</span><small>Assist</small></button>
+      <button class="nav-item active" data-tab="home"><svg viewBox="0 0 24 24"><path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></svg><small>Home</small></button>
+      <button class="nav-item" data-tab="maps"><svg viewBox="0 0 24 24"><path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Z"/><path d="M9 3v15"/><path d="M15 6v15"/></svg><small>Maps</small></button>
+      <button class="nav-item" data-tab="fuel"><svg viewBox="0 0 24 24"><path d="M5 21V4a1 1 0 0 1 1-1h9a1 1 0 0 1 1 1v17"/><path d="M3 21h15"/><path d="M8 7h5"/><path d="M16 8h2l2 2v7a2 2 0 1 0 4 0v-4l-3-3"/></svg><small>Fuel</small></button>
+      <button class="nav-item" data-tab="money"><svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M7 7V5h10v2"/><path d="M12 10v6"/><path d="M9.5 12a2.5 2.5 0 0 1 5 0"/></svg><small>Money</small></button>
+      <button class="nav-item" data-tab="assist"><svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M3 12h18"/><path d="M7 7l10 10"/><path d="M17 7 7 17"/></svg><small>Assist</small></button>
     </nav>
   </div>
 
@@ -55,7 +57,7 @@
 
   <div id="toast" class="toast"></div>
 
-  <script src="https://unpkg.com/maplibre-gl@5.1.1/dist/maplibre-gl.js"></script>
+  <script src="https://unpkg.com/maplibre-gl@5.7.3/dist/maplibre-gl.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

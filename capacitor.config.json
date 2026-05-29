@@ -1,12 +1,12 @@
 {
   "appId": "com.projekbonek.ngr",
-  "appName": "NGR Map Rusdi",
+  "appName": "NGR Premium",
   "webDir": "www",
   "bundledWebRuntime": false,
   "plugins": {
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
-      "iconColor": "#5a8dff"
+      "iconColor": "#5b8cff"
     }
   }
 }

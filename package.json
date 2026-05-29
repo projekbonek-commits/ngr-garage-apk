@@ -1,6 +1,6 @@
 {
-  "name": "ngr-map-rusdi",
-  "version": "7.0.0",
+  "name": "ngr-premium-maps",
+  "version": "8.0.0",
   "private": true,
   "dependencies": {
     "@capacitor/android": "6.1.2",

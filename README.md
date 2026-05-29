@@ -1,18 +1,12 @@
-# NGR v7 Map Rusdi
+# NGR v8 Premium Maps
 
-Rework NGR: GPS live dibuang. Fokus manual daily KM, MapLibre route planner titik-ke-titik, fuel, money, dan Kang Rusdi Assist.
+Rework tampilan premium iOS-style + MapLibre route planner. GPS live dibuang dari flow utama.
 
-## Build APK
-1. Upload/replace semua file ZIP ini ke repo GitHub.
-2. Buka Actions.
-3. Run workflow `Build NGR v7 APK`.
-4. Download artifact APK debug.
+## Fokus
+- Daily KM + streak reminder
+- Maps titik start/tujuan, route ikut jalan via ORS/OSRM
+- Fuel, Money, Service, NGR Assist/Kang Rusdi
+- Tema `glass` dan `solid`
+- Optional MapTiler key untuk basemap lebih premium
 
-## Route ikut jalan
-- Default: OSRM public demo fallback.
-- Lebih stabil: isi OpenRouteService API Key di Settings.
-- Kalau routing gagal/internet mati, app fallback garis lurus dan ditandai jelas.
-
-## Reminder
-- Web fallback aktif saat app dibuka.
-- APK mencoba pakai Capacitor Local Notifications jika plugin tersedia.
+Build APK: GitHub Actions → Build NGR v8 APK → Run workflow.

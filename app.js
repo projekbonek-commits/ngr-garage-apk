@@ -1,8 +1,8 @@
 'use strict';
 
-const VERSION = 'v7.0 Map Rusdi';
-const KEY = 'ngr7_map_rusdi_data';
-const OLD_KEYS = ['ngr6_data','ngr5_data','ngr_data'];
+const VERSION = 'v8.0 iOS Map Premium';
+const KEY = 'ngr8_ios_map_premium_data';
+const OLD_KEYS = ['ngr7_map_rusdi_data','ngr6_data','ngr5_data','ngr_data'];
 
 const $ = (s, root=document) => root.querySelector(s);
 const $$ = (s, root=document) => [...root.querySelectorAll(s)];
@@ -53,7 +53,7 @@ function baseData(){
     routes:{orsKey:'', favorites:[], logs:[]},
     assist:{messages:[{role:'bot', ts, text:'Yo bos, Kang Rusdi siap. Sekarang NGR fokus manual harian + maps titik-ke-titik, bukan GPS ribet.'}], problems:[]},
     ai:{baseUrl:'https://openrouter.ai/api/v1', key:'', model:'openrouter/auto'},
-    settings:{reminderEnabled:false, reminderTime:'20:00', lastReminderDate:'', routeProfile:'driving-car'}
+    settings:{reminderEnabled:false, reminderTime:'20:00', lastReminderDate:'', routeProfile:'driving-car', theme:'glass', mapStyle:'positron', mapTilerKey:''}
   };
 }
 
@@ -290,39 +290,83 @@ function renderMaps(){
   const r = draftRoute.result;
   const pts = draftRoute.points;
   return `
-    <div class="section-title"><h2>Maps</h2><small>route ikut jalan</small></div>
-    <div class="card map-card">
-      <div style="position:relative"><div id="map"></div><div class="route-help"><span class="pill blue">${mapHint()}</span></div></div>
-      <div class="map-panel">
-        <div class="map-tools">
-          <button class="btn small ${draftRoute.mode==='start'?'primary':''}" data-action="map-mode" data-mode="start">Start</button>
-          <button class="btn small ${draftRoute.mode==='goal'?'primary':''}" data-action="map-mode" data-mode="goal">Tujuan</button>
-          <button class="btn small ${draftRoute.mode==='stop'?'primary':''}" data-action="map-mode" data-mode="stop">+Stop</button>
+    <div class="map-shell">
+      <div class="map-hero">
+        <div>
+          <div class="eyebrow">NGR MAPS</div>
+          <h2>Route Planner</h2>
+          <p>Tap start dan tujuan. Rute ikut jalan, bukan garis lurus GPS ribet.</p>
         </div>
-        <div class="map-result">
-          <div class="stat-tile"><b>${pts.length}</b><span>Titik</span></div>
-          <div class="stat-tile"><b>${r?fmtKm(r.km):'-'}</b><span>Jarak jalan</span></div>
-          <div class="stat-tile"><b>${r?fmtRp(r.cost):'-'}</b><span>Est. bensin</span></div>
+        <button class="map-reset" data-action="route-reset" aria-label="Reset route">↺</button>
+      </div>
+      <div class="premium-map-card">
+        <div id="map"></div>
+        <div class="route-help"><span id="mapHint" class="glass-pill">${mapHint()}</span></div>
+        <div id="mapFallback" class="map-fallback hide">
+          <b>Map belum kebuka</b>
+          <span>Cek internet/CDN. Routing masih bisa dicoba, atau pakai rute favorit/manual KM.</span>
         </div>
-        <div class="chips" style="margin-top:10px">
-          <button class="chip active" data-action="route-calc">Hitung rute jalan</button>
-          <button class="chip" data-action="route-add-km">Tambah ke KM</button>
-          <button class="chip" data-action="route-save">Simpan rute</button>
-          <button class="chip" data-action="route-reset">Reset</button>
+      </div>
+      <div class="route-dock">
+        <div class="seg-control">
+          <button class="seg ${draftRoute.mode==='start'?'on':''}" data-action="map-mode" data-mode="start">Start</button>
+          <button class="seg ${draftRoute.mode==='goal'?'on':''}" data-action="map-mode" data-mode="goal">Tujuan</button>
+          <button class="seg ${draftRoute.mode==='stop'?'on':''}" data-action="map-mode" data-mode="stop">Stop</button>
+        </div>
+        <div class="route-metrics">
+          <div><b id="routePts">${pts.length}</b><span>Titik</span></div>
+          <div><b id="routeKm">${r?fmtKm(r.km):'-'}</b><span>Jarak</span></div>
+          <div><b id="routeFuel">${r?fmtRp(r.cost):'-'}</b><span>Est. BBM</span></div>
+        </div>
+        <div class="route-actions">
+          <button class="btn primary" data-action="route-calc">Hitung rute jalan</button>
+          <button class="btn" data-action="route-add-km">Tambah ke KM</button>
+          <button class="btn" data-action="route-save">Simpan</button>
         </div>
       </div>
     </div>
-    <div class="card rusdi-card">
-      <div class="between"><div><b>Kang Rusdi Route Scan</b><div class="small muted">AI baca rute, fuel, service, dan money.</div></div><span class="pill blue">Map AI</span></div>
-      <div class="small" style="margin-top:10px">${routeScan()}</div>
+    <div class="card rusdi-card premium">
+      <div class="between"><div><b>Kang Rusdi Route Scan</b><div class="small muted">Baca rute, fuel, money, dan service.</div></div><span class="pill blue">Context AI</span></div>
+      <div id="routeScanText" class="small" style="margin-top:10px">${routeScan()}</div>
       <div class="row" style="margin-top:12px"><input id="map-ai-input" placeholder="Tanya: rute ini boros gak?" /><button class="btn primary" data-action="map-ai-ask">Kirim</button></div>
     </div>
     <div class="section-title"><h2>Rute Favorit</h2><small>${state.routes.favorites.length}</small></div>
-    <div class="list">${state.routes.favorites.length ? state.routes.favorites.map(renderRouteFav).join('') : `<div class="card tight muted small">Belum ada rute favorit. Tap titik start-tujuan, hitung, lalu simpan.</div>`}</div>
-    <div class="warnbox">Routing otomatis ikut jalan pakai OpenRouteService kalau API key diisi. Kalau kosong, app pakai OSRM demo fallback. Kalau internet/routing gagal, baru fallback garis lurus dan ditandai jelas.</div>`;
+    <div id="routeFavList" class="list">${state.routes.favorites.length ? state.routes.favorites.map(renderRouteFav).join('') : `<div class="card tight muted small">Belum ada rute favorit. Tap start-tujuan, hitung, lalu simpan.</div>`}</div>
+    <div class="warnbox soft">Default map pakai OpenFreeMap/MapLibre biar gratis. Kalau punya MapTiler key, isi di Settings biar basemap makin premium.</div>`;
+}
+
+function applyAppTheme(){
+  const theme = state?.settings?.theme || 'glass';
+  document.body.classList.toggle('theme-solid', theme === 'solid');
+  document.body.classList.toggle('theme-glass', theme !== 'solid');
+}
+function setMapMode(mode){
+  draftRoute.mode = mode || 'start';
+  updateMapUI();
+  toast(mode==='start'?'Tap map buat titik start':mode==='goal'?'Tap map buat tujuan':'Tap map buat stop/waypoint');
+}
+function updateMapUI(){
+  const hint=$('#mapHint'); if(hint) hint.textContent = mapHint();
+  const pts=$('#routePts'); if(pts) pts.textContent = draftRoute.points.length;
+  const km=$('#routeKm'); if(km) km.textContent = draftRoute.result ? fmtKm(draftRoute.result.km) : '-';
+  const fuel=$('#routeFuel'); if(fuel) fuel.textContent = draftRoute.result ? fmtRp(draftRoute.result.cost) : '-';
+  const scan=$('#routeScanText'); if(scan) scan.textContent = routeScan();
+  $$('.seg[data-mode]').forEach(b=>b.classList.toggle('on', b.dataset.mode === draftRoute.mode));
+}
+function mapStyleUrl(){
+  const key = state?.settings?.mapTilerKey || '';
+  if(key) return `https://api.maptiler.com/maps/streets-v2/style.json?key=${encodeURIComponent(key)}`;
+  const style = state?.settings?.mapStyle || 'positron';
+  if(style === 'liberty') return 'https://tiles.openfreemap.org/styles/liberty';
+  if(style === 'bright') return 'https://tiles.openfreemap.org/styles/bright';
+  return 'https://tiles.openfreemap.org/styles/positron';
+}
+function detachMap(){
+  try{ if(map){ map.remove(); } }catch(e){}
+  map=null; mapLoaded=false; markers=[];
 }
 function mapHint(){
-  if(!draftRoute.points.length) return 'Tap map buat titik START';
+  if(!draftRoute.points.length) return 'Tap map buat START';
   if(draftRoute.points.length===1) return 'Tap TUJUAN, lalu hitung rute jalan';
   if(!draftRoute.result) return 'Titik siap. Tap Hitung rute jalan';
   return `${fmtKm(draftRoute.result.km)} · ${draftRoute.result.provider}`;
@@ -442,7 +486,7 @@ function handleAction(a, el, ev){
   if(a==='fi-check') return fiCheck();
   if(a==='assist-send') return sendAssist($('#assistInput')?.value || '');
   if(a==='map-ai-ask') return sendMapAsk($('#map-ai-input')?.value || '');
-  if(a==='map-mode') { draftRoute.mode=el.dataset.mode; render(); setTimeout(ensureMap, 50); return; }
+  if(a==='map-mode') { setMapMode(el.dataset.mode); return; }
   if(a==='route-reset') return resetRoute();
   if(a==='route-calc') return calculateRoute();
   if(a==='route-add-km') return addRouteToKm();
@@ -460,6 +504,7 @@ function setTab(tab){
   $$('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.tab===tab));
   $$('.screen').forEach(s=>s.classList.toggle('active', s.id===`tab-${tab}`));
   if(tab==='maps') setTimeout(ensureMap, 80);
+  applyAppTheme();
   drawChartsSoon();
 }
 function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('show'),2200); }
@@ -480,7 +525,7 @@ function handleSheet(a, el){
   if(a==='save-settings') return saveSettingsFromSheet();
   if(a==='export') return exportData();
   if(a==='import') return $('#importFile').click();
-  if(a==='reset') { if(confirm('Reset semua data NGR v7?')) { localStorage.removeItem(KEY); state=baseData(); save(); closeSheet(); render(); toast('Data direset'); } }
+  if(a==='reset') { if(confirm('Reset semua data NGR v8?')) { localStorage.removeItem(KEY); state=baseData(); save(); closeSheet(); render(); toast('Data direset'); } }
 }
 function openQuickSheet(){ sheet(`<h2>Quick Add</h2><div class="quick-grid"><button class="quick primary" data-sheet-action="close" onclick="setTimeout(openKmSheet,120)"><i>＋</i>KM</button><button class="quick" data-sheet-action="close" onclick="setTimeout(openFuelSheet,120)"><i>⛽</i>Fuel</button><button class="quick" data-sheet-action="close" onclick="setTimeout(openServiceSheet,120)"><i>🛠</i>Service</button><button class="quick" data-sheet-action="close" onclick="setTimeout(openExpenseSheet,120)"><i>💸</i>Money</button></div><button class="btn block" style="margin-top:12px" data-sheet-action="close">Tutup</button>`); }
 function openKmSheet(){ sheet(`<h2>Input Daily KM</h2><div class="field"><label>KM hari ini</label><input id="kmVal" inputmode="decimal" placeholder="contoh 8.5" /></div><div class="field"><label>Catatan</label><input id="kmNote" placeholder="contoh sekolah + muter" /></div><button class="btn primary block" data-sheet-action="save-km">Simpan KM</button>`); }
@@ -506,6 +551,8 @@ function openSettings(){
     <div class="form-row"><div class="field"><label>Virtual KM</label><input id="setKm" inputmode="decimal" value="${state.bike.virtualKm}" /></div><div class="field"><label>Tank liter</label><input id="setTank" inputmode="decimal" value="${state.bike.tankLiters}" /></div></div>
     <div class="section-title"><h2>Route API</h2><small>ikut jalan</small></div>
     <div class="field"><label>OpenRouteService API Key</label><input id="setOrs" value="${escapeHtml(state.routes.orsKey)}" placeholder="kosong = OSRM fallback" /></div>
+    <div class="form-row"><div class="field"><label>Map Style</label><input id="setMapStyle" list="mapStyles" value="${state.settings.mapStyle||'positron'}" /><datalist id="mapStyles"><option>positron</option><option>liberty</option><option>bright</option></datalist></div><div class="field"><label>Tema UI</label><input id="setTheme" list="themes" value="${state.settings.theme||'glass'}" /><datalist id="themes"><option>glass</option><option>solid</option></datalist></div></div>
+    <div class="field"><label>MapTiler Key optional</label><input id="setMapTiler" value="${escapeHtml(state.settings.mapTilerKey||'')}" placeholder="opsional: basemap lebih premium" /></div>
     <div class="section-title"><h2>Fuel & Money</h2><small>estimasi</small></div>
     <div class="form-row"><div class="field"><label>km/L</label><input id="setKmpl" inputmode="decimal" value="${state.fuel.kmpl}" /></div><div class="field"><label>Budget bulanan</label><input id="setBudget" inputmode="numeric" value="${state.money.monthlyBudget}" /></div></div>
     <div class="form-row"><div class="field"><label>Harga Pertalite</label><input id="setPertalite" inputmode="numeric" value="${state.fuel.prices.Pertalite}" /></div><div class="field"><label>Harga Pertamax</label><input id="setPertamax" inputmode="numeric" value="${state.fuel.prices.Pertamax}" /></div></div>
@@ -524,28 +571,42 @@ function openSettings(){
 }
 function saveSettingsFromSheet(){
   state.bike.name=$('#setBike').value||state.bike.name; state.bike.virtualKm=num($('#setKm').value); state.bike.tankLiters=num($('#setTank').value,4);
-  state.routes.orsKey=$('#setOrs').value.trim(); state.fuel.kmpl=num($('#setKmpl').value,55); state.money.monthlyBudget=num($('#setBudget').value,250000);
+  state.routes.orsKey=$('#setOrs').value.trim(); state.settings.mapStyle=$('#setMapStyle')?.value || 'positron'; state.settings.theme=$('#setTheme')?.value || 'glass'; state.settings.mapTilerKey=$('#setMapTiler')?.value.trim() || ''; detachMap(); state.fuel.kmpl=num($('#setKmpl').value,55); state.money.monthlyBudget=num($('#setBudget').value,250000);
   state.fuel.prices.Pertalite=num($('#setPertalite').value,10000); state.fuel.prices.Pertamax=num($('#setPertamax').value,12950); state.fuel.prices['Shell Super']=num($('#setShell').value,13990);
   state.settings.reminderTime=$('#setReminder').value||'20:00'; state.settings.reminderEnabled=/ya|on|true|1|aktif/i.test($('#setReminderOn').value);
   state.ai.baseUrl=$('#setAiBase').value.trim()||state.ai.baseUrl; state.ai.key=$('#setAiKey').value.trim(); state.ai.model=$('#setAiModel').value.trim()||state.ai.model;
-  save(); scheduleReminder(); closeSheet(); render(); toast('Settings disimpan');
+  save(); scheduleReminder(); applyAppTheme(); closeSheet(); render(); toast('Settings disimpan');
 }
 
 function ensureMap(){
   if(activeTab!=='maps') return;
-  const mapEl = $('#map'); if(!mapEl || typeof maplibregl==='undefined') return;
-  if(map){ map.resize(); renderMapObjects(); return; }
-  map = new maplibregl.Map({
-    container:'map', center:[112.62,-7.44], zoom:12, attributionControl:false,
-    style:{version:8, sources:{osm:{type:'raster', tiles:['https://a.tile.openstreetmap.org/{z}/{x}/{y}.png','https://b.tile.openstreetmap.org/{z}/{x}/{y}.png','https://c.tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256, attribution:'© OpenStreetMap'}}, layers:[{id:'osm', type:'raster', source:'osm'}]}
-  });
-  map.addControl(new maplibregl.NavigationControl({showCompass:false}), 'top-right');
-  map.on('load',()=>{ mapLoaded=true; renderMapObjects(); });
-  map.on('click', e => addMapPoint(e.lngLat.lng, e.lngLat.lat));
+  const mapEl = $('#map'); if(!mapEl) return;
+  if(typeof maplibregl==='undefined') { $('#mapFallback')?.classList.remove('hide'); return; }
+  // If render() replaced the map container, recreate safely instead of keeping a stale canvas.
+  if(map && map.getContainer && map.getContainer() !== mapEl) detachMap();
+  if(map){ map.resize(); renderMapObjects(); updateMapUI(); return; }
+  mapEl.innerHTML='';
+  try{
+    map = new maplibregl.Map({
+      container:'map',
+      center:[112.62,-7.44],
+      zoom:12.2,
+      pitch:0,
+      attributionControl:false,
+      style: mapStyleUrl(),
+      cooperativeGestures:false
+    });
+    map.addControl(new maplibregl.NavigationControl({showCompass:false, visualizePitch:false}), 'top-right');
+    map.on('load',()=>{ mapLoaded=true; $('#mapFallback')?.classList.add('hide'); map.resize(); renderMapObjects(); updateMapUI(); });
+    map.on('error', e => { console.warn('map error', e?.error || e); $('#mapFallback')?.classList.remove('hide'); });
+    map.on('click', e => addMapPoint(e.lngLat.lng, e.lngLat.lat));
+    setTimeout(()=>{ try{ map?.resize(); }catch(e){} },450);
+  }catch(e){ console.warn(e); $('#mapFallback')?.classList.remove('hide'); }
 }
 function addMapPoint(lng,lat){
   if(draftRoute.mode==='start'){
-    if(draftRoute.points[0]?.kind==='start') draftRoute.points[0]={lng,lat,kind:'start'}; else draftRoute.points.unshift({lng,lat,kind:'start'});
+    const i=draftRoute.points.findIndex(p=>p.kind==='start');
+    if(i>=0) draftRoute.points[i]={lng,lat,kind:'start'}; else draftRoute.points.unshift({lng,lat,kind:'start'});
     draftRoute.mode = draftRoute.points.some(p=>p.kind==='goal') ? 'stop' : 'goal';
   } else if(draftRoute.mode==='goal'){
     const i=draftRoute.points.findIndex(p=>p.kind==='goal');
@@ -557,7 +618,8 @@ function addMapPoint(lng,lat){
     if(goalIndex>=0) draftRoute.points.splice(goalIndex,0,stop); else draftRoute.points.push(stop);
   }
   draftRoute.result=null; draftRoute.line=null;
-  render(); setTimeout(()=>{ ensureMap(); renderMapObjects(); },50);
+  clearRouteLine();
+  renderMapObjects(); updateMapUI();
 }
 function orderedPoints(){
   const start=draftRoute.points.find(p=>p.kind==='start'); const goal=draftRoute.points.find(p=>p.kind==='goal'); const stops=draftRoute.points.filter(p=>p.kind==='stop');
@@ -587,7 +649,8 @@ function drawRouteLine(coords){
     map.addLayer({id:'route-line',type:'line',source:'route',paint:{'line-color':'#32d6c5','line-width':5,'line-opacity':.95}});
   }
 }
-function resetRoute(){ draftRoute={mode:'start', points:[], line:null, result:null}; render(); setTimeout(()=>{ ensureMap(); if(map?.getSource('route')) map.getSource('route').setData({type:'FeatureCollection',features:[]}); markers.forEach(m=>m.remove()); markers=[]; },50); }
+function clearRouteLine(){ try{ if(map?.getSource('route')) map.getSource('route').setData({type:'FeatureCollection',features:[]}); }catch(e){} }
+function resetRoute(){ draftRoute={mode:'start', points:[], line:null, result:null}; clearRouteLine(); markers.forEach(m=>m.remove()); markers=[]; updateMapUI(); toast('Rute direset'); }
 function routeCoordsStr(pts){ return pts.map(p=>`${p.lng},${p.lat}`).join(';'); }
 async function calculateRoute(){
   const pts=orderedPoints();
@@ -600,13 +663,13 @@ async function calculateRoute(){
     const fuelNeed=res.km/Math.max(1,num(state.fuel.kmpl,55)); res.cost = fuelNeed * state.fuel.prices.Pertalite;
     state.routes.logs.unshift({id:id(), ts:now(), km:res.km, cost:res.cost, provider:res.provider, points:pts});
     logEvent(`Rute dihitung: ${fmtKm(res.km)} lewat jalan (${res.provider}). Estimasi bensin ${fmtL(fuelNeed)}.`);
-    save(); render(); setTimeout(()=>{ensureMap(); renderMapObjects();},80); toast('Rute jalan siap');
+    save(); renderMapObjects(); updateMapUI(); toast('Rute jalan siap');
   }catch(e){
     console.warn(e);
     const coords=pts.map(p=>[p.lng,p.lat]); const km=polylineKm(coords); const fuelNeed=km/Math.max(1,num(state.fuel.kmpl,55));
     draftRoute.line=coords; draftRoute.result={km, durationMin:0, coords, provider:'fallback garis lurus', cost:fuelNeed*state.fuel.prices.Pertalite};
     logEvent(`Routing gagal, fallback garis lurus ${fmtKm(km)}. Cek internet/API key.`);
-    render(); setTimeout(()=>{ensureMap(); renderMapObjects();},80); toast('Routing gagal, fallback lurus');
+    renderMapObjects(); updateMapUI(); toast('Routing gagal, fallback lurus');
   }
 }
 async function routeWithORS(pts){
@@ -634,12 +697,12 @@ function saveRouteFav(){
   const r=draftRoute.result; if(!r) return toast('Hitung rute dulu');
   const name=prompt('Nama rute favorit?', `Rute ${fmtKm(r.km)}`); if(!name) return;
   state.routes.favorites.unshift({id:id(), name, km:r.km, cost:r.cost, provider:r.provider, points:orderedPoints(), coords:r.coords, ts:now()});
-  save(); render(); toast('Rute favorit disimpan');
+  save(); const list=$('#routeFavList'); if(list) list.innerHTML = state.routes.favorites.map(renderRouteFav).join(''); toast('Rute favorit disimpan');
 }
 function useRouteFav(routeId){
   const r=state.routes.favorites.find(x=>x.id===routeId); if(!r) return;
   draftRoute.points=r.points||[]; draftRoute.line=r.coords||null; draftRoute.result={km:r.km,cost:r.cost||r.km/Math.max(1,state.fuel.kmpl)*state.fuel.prices.Pertalite,provider:r.provider||'favorite route',coords:r.coords||[]};
-  setTab('maps'); render(); setTimeout(()=>{ ensureMap(); renderMapObjects(); },100); toast('Rute favorit siap');
+  setTab('maps'); setTimeout(()=>{ ensureMap(); renderMapObjects(); updateMapUI(); },100); toast('Rute favorit siap');
 }
 
 function fiCheck(){
@@ -735,4 +798,4 @@ function exportData(){
 function importData(ev){ const file=ev.target.files?.[0]; if(!file) return; const fr=new FileReader(); fr.onload=()=>{ try{ state=normalize(JSON.parse(fr.result)); save(); closeSheet(); render(); toast('Import berhasil'); }catch(e){ toast('Import gagal'); } }; fr.readAsText(file); }
 
 if('serviceWorker' in navigator){ navigator.serviceWorker.register('service-worker.js').catch(()=>{}); }
-render(); checkReminder(); scheduleReminder();
+applyAppTheme(); render(); checkReminder(); scheduleReminder();
