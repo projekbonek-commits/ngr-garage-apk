@@ -1,21 +1,13 @@
 {
-  "name": "NGR Neo Liquid Garage OS",
+  "name": "NGR Neo",
   "short_name": "NGR Neo",
   "description": "Liquid Garage OS untuk Honda BeAT FI 2014",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#eaf6ff",
-  "theme_color": "#eaf6ff",
+  "background_color": "#06111f",
+  "theme_color": "#06111f",
   "icons": [
-    {
-      "src": "icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
-    },
-    {
-      "src": "icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png"
-    }
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

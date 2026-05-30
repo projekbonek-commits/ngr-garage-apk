@@ -1,3 +1,6 @@
-# NGR Neo v1.3 Liquid Garage
+# NGR Neo v2 Liquid UI
 
-Liquid iOS-style HTML/CSS/JS build with clean Home, Money Collection, FI Code Helper, Emergency Guide, Fuel, Maps.
+HTML/CSS/JS build dengan tampilan liquid glass, Home/Maps/Fuel/Money/Collection/Assist.
+
+## Build APK via GitHub Actions
+Upload semua file ke root repo, lalu buka Actions -> Build NGR Neo APK -> Run workflow.
