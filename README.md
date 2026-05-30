@@ -1,3 +1,3 @@
-# NGR Neo HTML v1.2 Polish Collection
+# NGR Neo v1.3 Liquid Garage
 
-Update fokus finishing: UI lebih smooth, logo baru, font/spacing dipoles, dan Money sekarang punya Garage Collection buat konsep/style motor, stop lamp, knalpot, velg, link, foto, target harga.
+Liquid iOS-style HTML/CSS/JS build with clean Home, Money Collection, FI Code Helper, Emergency Guide, Fuel, Maps.

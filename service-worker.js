@@ -1,4 +1,4 @@
-const CACHE = 'ngr-neo-html-v12-polish';
+const CACHE = 'ngr-neo-html-mapfix-v1';
 const ASSETS = ['./index.html','./style.css','./app.js','./manifest.json','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', e => {
   self.skipWaiting();

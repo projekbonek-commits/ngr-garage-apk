@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'NGR Neo HTML v1.2 Polish Collection';
+const VERSION = 'NGR Neo v1.3 Liquid Garage';
 const STORE_KEY = 'ngr_neo_html_mapfix_v1';
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
@@ -27,16 +27,28 @@ const SERVICES = [
 ];
 
 const GUIDES = {
-  dead:{title:'Motor mati di jalan', icon:'⚠️', tag:'Darurat', danger:'Pinggirkan motor dulu. Jangan cek busi dekat bensin atau mesin terlalu panas.', steps:['Cek bensin dan posisi standar samping/engine cut-off kalau ada.','Lihat indikator FI: nyala/kedip? Catat kedip panjang-pendek.','Coba starter: kalau cuma tek-tek atau lemah, curiga aki/kabel.','Cek sekring utama/lampu indikator.','Kalau masih bisa bongkar aman, cek kop busi longgar/busi basah.','Kalau mesin bunyi kasar, jangan paksa jalan jauh.'], service:null},
+  dead:{title:'Motor mati di jalan', icon:'⚠️', tag:'Darurat', danger:'Pinggirkan motor dulu. Jangan cek busi dekat bensin atau mesin terlalu panas.', steps:['Pinggirkan motor, hazard/sein kalau aman, matikan kontak 10 detik lalu ON lagi.','Cek bensin, standar samping, kabel massa/aki, dan sekring utama.','Lihat lampu MIL/FI: nyala terus atau berkedip? Catat pola panjang-pendek.','Coba starter: tek-tek/lemah biasanya aki/kabel; muter normal tapi tidak hidup bisa pengapian/bensin/injeksi.','Cek kop busi longgar/basah kalau alat dan kondisi aman.','Kalau mesin bunyi kasar, bau gosong, atau lampu FI berkedip terus, jangan dipaksa jalan jauh.'], service:null},
   spark:{title:'Cek busi lemah/mati', icon:'⚡', tag:'Pengapian', danger:'Jangan tes api busi dekat tangki/bensin. Kalau ragu, catat problem dan bawa ke bengkel.', steps:['Gejala: susah starter, brebet, langsam tidak stabil, mati mendadak.','Cek kop busi: longgar/retak/basah.','Kalau busi hitam basah, bisa kebanyakan bensin/percikan lemah.','Kalau elektroda aus/kotor parah, ganti busi.','Setelah ganti, catat service Busi di NGR.'], service:'spark'},
   oil:{title:'Ganti oli mesin', icon:'🛢️', tag:'Maintenance', danger:'Jangan buka baut oli saat mesin terlalu panas. Pakai standar tengah dan lap sisa oli.', steps:['Panaskan mesin sebentar, lalu matikan.','Buka baut pembuangan, tampung oli lama.','Tunggu sampai tetes berkurang, pasang baut lagi.','Isi oli sesuai rekomendasi kapasitas motor.','Nyalakan sebentar, cek rembes, lalu catat service Oli Mesin.'], service:'oil'},
   gear:{title:'Ganti oli gardan', icon:'⚙️', tag:'Maintenance', danger:'Jangan kelamaan interval oli gardan, suara belakang bisa kasar.', steps:['Motor di standar tengah.','Buka baut drain gardan dan tampung oli lama.','Tutup drain, isi oli gardan sesuai kapasitas.','Cek rembes area baut.','Catat service Oli Gardan.'], service:'gear'},
   cvt:{title:'CVT bunyi/getar', icon:'🌀', tag:'Transmisi', danger:'Kalau bunyi keras metalik, jangan dipaksa jauh.', steps:['Gejala umum: getar awal, tarikan berat, bunyi area kiri.','Cek kapan terakhir CVT dibersihkan.','Cek v-belt/roller/kampas ganda di bengkel kalau belum punya alat.','Kalau habis hujan/banjir, keringkan dan cek slip.','Catat problem biar keliatan pola.'], service:'cvt'},
-  fi:{title:'FI Code Helper', icon:'💡', tag:'MIL/FI', danger:'Kode FI cuma arah diagnosa, bukan vonis part pasti. Tetap cek soket, kabel, dan aki.', steps:['Hitung kedipan panjang = puluhan.','Hitung kedipan pendek = satuan.','Contoh 1 panjang + 2 pendek = kode 12.','Catat kode dan gejala.','Cek aki/tegangan dan soket sensor sebelum ganti part.'], service:null}
+  fi:{title:'FI Code Helper', icon:'💡', tag:'MIL/FI', danger:'Kode FI cuma arah diagnosa, bukan vonis part pasti. Tetap cek soket, kabel, aki, dan bawa ke AHASS/bengkel kalau ragu.', steps:['Kedipan panjang dihitung 10, kedipan pendek dihitung 1.','Contoh: 1 panjang + 2 pendek = kode 12.','Kode umum Honda: 1 MAP, 7 EOT/ECT, 8 TP, 9 IAT, 11 VS, 12 injektor, 21 O2, 29 IACV, 33 ECM, 54 BAS.','Catat kode + gejala: brebet, mati, boros, susah starter.','Jangan langsung ganti part. Cek aki, soket, kabel putus/longgar, lalu scan/manual service.'], service:null}
 };
 
-const COLLECTION_CATS = ['Concept','Stop Lamp','Knalpot','Velg/Ban','Shock','Lampu','CVT','Body','Tools','Other'];
-const COLLECTION_STATUS = ['Wishlist','Target','Nabung','Bought'];
+
+const COLLECTION_CATEGORIES = ['Stop lamp','ECU','Spion','Knalpot','Velg','Ban','Shock','Rem','CVT/Performa','Lampu/Listrik','Body/Aksesoris','Cockpit/Holder'];
+const MODIF_STYLES = ['Daily Clean','Thai Look','Retro Race','BMW M3 GTR','Touring Lite','Street OEM+'];
+const COLLECTION_IDEAS = [
+  {cat:'Stop lamp', name:'Stop lamp running LED', price:85000, note:'rapihin belakang, cek kabel sein/rem'},
+  {cat:'ECU', name:'ECU/remap Beat FI', price:450000, note:'wishlist performa, jangan asal plug kalau daily'},
+  {cat:'Spion', name:'Spion model clean', price:75000, note:'pilih yang masih aman buat harian'},
+  {cat:'Knalpot', name:'Knalpot slip-on kalem', price:350000, note:'jangan terlalu berisik kalau daily'},
+  {cat:'Shock', name:'Shock 290mm', price:280000, note:'sesuai konsep turun rapi'},
+  {cat:'Velg', name:'Velg R14 + ban donat', price:750000, note:'konsep Thai/daily clean'}
+];
+const FI_CODES = {
+  1:'Sensor MAP / tekanan manifold', 7:'Sensor EOT/ECT suhu mesin', 8:'Sensor TP / throttle position', 9:'Sensor IAT suhu udara masuk', 11:'Sensor VS / vehicle speed', 12:'Injektor / rangkaian injektor', 21:'Sensor O2', 29:'IACV / langsam', 33:'ECM / ECU', 54:'BAS / bank angle sensor'
+};
 
 const svgIcon = name => {
   const icons = {
@@ -49,8 +61,6 @@ const svgIcon = name => {
     km:'<svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M3 12h18"/></svg>',
     fuel:'<svg viewBox="0 0 24 24"><path d="M6 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17"/><path d="M4 21h14"/><path d="M9 7h4"/><path d="M16 8h2l2 2v6.5a1.5 1.5 0 0 0 3 0V13l-3-3"/></svg>',
     money:'<svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M7 7V5h10v2"/><path d="M12 10v6"/></svg>',
-    collection:'<svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z"/><path d="M7 7V5h10v2"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>',
-    link:'<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg>',
     wrench:'<svg viewBox="0 0 24 24"><path d="m14 7 3 3"/><path d="M5 19 15.5 8.5a4 4 0 0 1 5-5L17 7l-3-3 3.5-3.5a4 4 0 0 0-5 5L2 16v5h5Z"/></svg>'
   };
   return icons[name] || icons.wrench;
@@ -61,7 +71,7 @@ const DEFAULT_STATE = {
   bike:{name:'Honda BeAT FI 2014', virtualKm:0},
   kmLogs:[],
   fuel:{liters:0, tankLiters:4.0, kmpl:55, prices:{Pertalite:10000,Pertamax:12950,Shell:14530}, logs:[], balance:[]},
-  money:{monthlyBudget:250000, savings:0, savingsTarget:500000, expenses:[], collections:[]},
+  money:{monthlyBudget:250000, savings:0, savingsTarget:500000, expenses:[], collection:[], concepts:[]},
   service:{},
   routes:{favorites:[]},
   assist:{messages:[{role:'bot', ts:now(), text:'Yo, gw Kang Rusdi. Input KM/fuel/service dulu, nanti gw bantu scan motor lu.'}], problems:[]},
@@ -84,6 +94,8 @@ function normalize(raw){
   merge(s, raw || {});
   s.version = VERSION;
   SERVICES.forEach(x => { if(!s.service[x.key]) s.service[x.key] = {lastKm:num(s.bike.virtualKm), lastTs:now()}; });
+  if(!Array.isArray(s.money.collection)) s.money.collection = [];
+  if(!Array.isArray(s.money.concepts)) s.money.concepts = [];
   return s;
 }
 function merge(target, src){
@@ -144,70 +156,53 @@ function renderHome(){
   const health=overallHealth(), st=streakInfo(), p=servicePriority()[0], ph=serviceHealth(p), pr=serviceRemain(p);
   const todayDone = dailyLogs().length>0;
   return `
-    <div class="home-id-card card">
-      <div class="id-top">
+    <section class="neo-hero card">
+      <div class="bike-visual">
         <div class="bike-logo-wrap"><img src="icon-192.png" alt="NGR" /></div>
-        <div class="bike-title-wrap">
-          <div class="eyebrow">NGR Neo</div>
-          <h1>${esc(state.bike.name || 'Honda BeAT FI 2014')}</h1>
-          <p>Liquid Garage OS · daily motor log</p>
+        <div class="bike-meta">
+          <span>Honda</span>
+          <h1>BeAT FI <em>2014</em></h1>
+          <p>Plat Z 2002 WIE · daily motor log</p>
         </div>
-        <span class="status-dot ${health<40?'danger':health<70?'warn':'ok'}"></span>
       </div>
-      <div class="id-metrics">
-        <div class="id-metric main"><b>${fmtKm(state.bike.virtualKm)}</b><span>Virtual KM</span></div>
-        <div class="id-metric"><b>${fmtL(state.fuel.liters)}</b><span>Fuel</span></div>
-        <div class="id-metric"><b>${fmtKm(fuelRange())}</b><span>Range</span></div>
-        <div class="id-metric"><b>${health.toFixed(0)}%</b><span>Health</span></div>
+      <div class="odo-panel">
+        <div class="label">Odometer</div>
+        <div class="odo-number">${fmtKm(state.bike.virtualKm)}</div>
+        <span class="status-pill ${health<45?'bad':health<70?'warn':'ok'}">${health<45?'Perlu dicek':health<70?'Pantau service':'All components on track'}</span>
       </div>
-    </div>
+      <div class="hero-strip">
+        <div><b>${fmtDate(now())}</b><span>Terakhir update</span></div>
+        <div><b>${fmtKm(pr.km)} lagi</b><span>Service berikutnya</span></div>
+        <div><b>${health.toFixed(0)}%</b><span>Kondisi motor</span></div>
+      </div>
+    </section>
 
-    <div class="daily-card card">
-      <div class="daily-head">
-        <div>
-          <div class="label">Hari ini</div>
-          <h2>${fmtKm(todayKm())}</h2>
-          <p>${todayDone ? 'Sudah input. Aman, streak jalan.' : 'Belum input KM. Isi 0 km juga tetap dihitung.'}</p>
-        </div>
-        <span class="pill ${todayDone?'green':'red'}">${st.streak} streak</span>
-      </div>
-      <div class="chips compact-chips">
-        <button class="chip" data-action="km-add" data-km="0">0 km</button>
-        <button class="chip" data-action="km-add" data-km="5">+5</button>
-        <button class="chip" data-action="km-add" data-km="10">+10</button>
-        <button class="chip" data-action="km-sheet">Custom</button>
-        <button class="chip" data-tabgo="maps">Maps</button>
-      </div>
+    <div class="section-title"><h2>Komponen</h2><small>lihat semua</small></div>
+    <div class="component-grid">${SERVICES.slice(0,6).map(renderComponentCard).join('')}</div>
+
+    <div class="section-title"><h2>Hari ini</h2><small>${todayDone?'sudah input':'belum input'}</small></div>
+    <section class="daily-card card">
+      <div class="daily-head"><div><div class="label">Daily KM</div><h2>${fmtKm(todayKm())}</h2><p>${todayDone?'Streak aman.':'Isi 0 km juga tetap dihitung biar streak gak putus.'}</p></div><span class="pill ${todayDone?'green':'red'}">${st.streak} streak</span></div>
+      <div class="chips compact-chips"><button class="chip" data-action="km-add" data-km="0">0 km</button><button class="chip" data-action="km-add" data-km="5">+5</button><button class="chip" data-action="km-add" data-km="10">+10</button><button class="chip" data-action="km-sheet">Custom</button><button class="chip" data-tabgo="maps">Maps</button></div>
       ${renderStreakStrip()}
+    </section>
+
+    <div class="section-title"><h2>Template Cepat</h2><small>kelola</small></div>
+    <div class="template-row">
+      <button class="template-chip" data-action="service-sheet">${svgIcon('oil')}Oli Mesin</button>
+      <button class="template-chip" data-action="fuel-sheet">${svgIcon('fuel')}BBM</button>
+      <button class="template-chip" data-action="guide" data-key="spark">${svgIcon('spark')}Busi</button>
+      <button class="template-chip" data-action="guide" data-key="cvt">${svgIcon('swirl')}CVT</button>
     </div>
 
-    <div class="home-actions">
-      <button class="action-chip primary" data-action="km-sheet">${svgIcon('km')}<span>KM</span></button>
-      <button class="action-chip" data-action="fuel-sheet">${svgIcon('fuel')}<span>Fuel</span></button>
-      <button class="action-chip" data-action="service-sheet">${svgIcon('wrench')}<span>Service</span></button>
-      <button class="action-chip" data-action="expense-sheet">${svgIcon('money')}<span>Money</span></button>
-    </div>
-
-    <div class="section-title slim"><h2>Prioritas</h2><small>cukup 1 yang penting</small></div>
-    <button class="service-focus card" data-action="service-detail" data-key="${p.key}">
-      <div class="item-icon">${svgIcon(p.icon)}</div>
-      <div class="item-main">
-        <b>${p.name}</b>
-        <span>Sisa ${fmtKm(pr.km)} / ${pr.days} hari. ${ph<40?'Mulai siapin servis.':'Masih aman dipantau.'}</span>
-      </div>
-      <div class="mini-ring" style="--pct:${ph.toFixed(0)}">${ph.toFixed(0)}%</div>
-    </button>
-
-    <div class="rusdi-compact card">
-      <div class="between">
-        <div>
-          <div class="label">Kang Rusdi</div>
-          <p>${todayDone ? `Hari ini masuk ${fmtKm(todayKm())}. ` : 'Hari ini belum input. '}Fuel ${fmtL(state.fuel.liters)}, range ${fmtKm(fuelRange())}. Money bulan ini ${fmtRp(monthExpenses())}.</p>
-        </div>
-        <button class="btn" data-tabgo="assist">Buka</button>
-      </div>
-    </div>
+    <section class="rusdi-compact card">
+      <div class="between"><div><div class="label">Kang Rusdi</div><p>${todayDone ? `Hari ini masuk ${fmtKm(todayKm())}. ` : 'Hari ini belum input. '}Fuel ${fmtL(state.fuel.liters)}, range ${fmtKm(fuelRange())}. Service terdekat ${p.name}.</p></div><button class="btn" data-tabgo="assist">Buka</button></div>
+    </section>
   `;
+}
+function renderComponentCard(s){
+  const h=serviceHealth(s), r=serviceRemain(s);
+  return `<button class="component-card" data-action="service-detail" data-key="${s.key}"><span class="check ${h<40?'bad':h<70?'warn':'ok'}">✓</span><span class="component-ico">${svgIcon(s.icon)}</span><b>${s.name}</b><em>${fmtKm(r.km)} lagi</em><small>Estimasi ${r.days} hari</small></button>`;
 }
 function renderStreakStrip(){
   let html='<div class="streak-strip">'; const d=new Date();
@@ -264,47 +259,76 @@ function renderFuel(){
     <div class="section-title"><h2>Fuel Balance</h2><small>naik/turun</small></div><div class="card"><canvas id="fuelChart" class="chart"></canvas></div>
     <div class="section-title"><h2>History</h2><small>${state.fuel.logs.length}</small></div><div class="list">${state.fuel.logs.slice(0,14).map(x=>`<div class="item"><div class="item-icon">${svgIcon('fuel')}</div><div class="item-main"><b>${x.type} · ${fmtL(x.liters)}</b><span>${fmtDate(x.ts)} ${fmtTime(x.ts)}</span></div><b>${fmtRp(x.amount)}</b></div>`).join('') || '<div class="card tight muted small">Belum ada isi BBM.</div>'}</div>`;
 }
-function collectionTotal(status){ return state.money.collections.filter(x=>!status || x.status===status).reduce((a,x)=>a+num(x.price),0); }
-function renderCollectionCard(c){
-  const img = c.img ? `<img src="${esc(c.img)}" alt="${esc(c.title)}" loading="lazy" />` : svgIcon('collection');
-  return `<button class="collection-card" data-action="collection-detail" data-id="${c.id}">
-    <span class="status-badge">${esc(c.status||'Wishlist')}</span>
-    <div class="thumb">${img}</div>
-    <div class="body"><b>${esc(c.title)}</b><small>${esc(c.cat||'Other')} ${c.link?'· ada link':''}</small><div class="price">${fmtRp(c.price)}</div></div>
+
+function collectionStats(){
+  const items=state.money.collection||[];
+  const total=items.reduce((a,x)=>a+num(x.price),0);
+  const bought=items.filter(x=>x.status==='Bought'||x.status==='Terpasang').reduce((a,x)=>a+num(x.price),0);
+  return {items,total,bought,pending:Math.max(0,total-bought)};
+}
+function renderCollectionCard(item){
+  const safeUrl = item.image ? `style="background-image:url('${esc(item.image)}')"` : '';
+  return `<button class="collection-card" data-action="collection-detail" data-id="${item.id}">
+    <div class="collection-photo ${item.image?'has-img':''}" ${safeUrl}>${item.image?'':svgIcon(itemIcon(item.cat))}</div>
+    <div class="collection-body"><b>${esc(item.name)}</b><span>${esc(item.cat)} · ${esc(item.style||'Daily Clean')}</span><em>${fmtRp(item.price||0)}</em></div>
+    <span class="collection-status ${String(item.status||'Wishlist').toLowerCase()}">${esc(item.status||'Wishlist')}</span>
   </button>`;
 }
+function renderIdeaCard(x){
+  return `<button class="idea-card" data-action="collection-sheet" data-cat="${esc(x.cat)}" data-name="${esc(x.name)}" data-price="${x.price}"><div class="idea-ico">${svgIcon(itemIcon(x.cat))}</div><b>${esc(x.name)}</b><span>${esc(x.cat)} · ${fmtRp(x.price)}</span><small>${esc(x.note)}</small></button>`;
+}
+function itemIcon(cat){
+  const c=String(cat||'').toLowerCase();
+  if(c.includes('ecu')||c.includes('lampu')||c.includes('listrik')) return 'spark';
+  if(c.includes('knalpot')||c.includes('cvt')||c.includes('performa')) return 'swirl';
+  if(c.includes('ban')||c.includes('velg')) return 'brake';
+  if(c.includes('rem')) return 'brake';
+  if(c.includes('shock')||c.includes('spion')||c.includes('body')) return 'wrench';
+  return 'money';
+}
+function renderConceptNotes(){
+  const notes=state.money.concepts||[];
+  if(!notes.length) return '<div class="card tight muted small">Belum ada catatan konsep. Contoh: Thai Look, Daily Clean, BMW M3 GTR, part yang cocok/zonk.</div>';
+  return notes.slice(0,6).map(n=>`<div class="concept-note card tight"><b>${esc(n.style)}</b><span>${esc(n.note)}</span></div>`).join('');
+}
+
 function renderMoney(){
-  const spent=monthExpenses(), pct=state.money.monthlyBudget?spent/state.money.monthlyBudget*100:0;
-  const cols=state.money.collections || [];
-  const target=collectionTotal();
-  const bought=collectionTotal('Bought');
+  const spent=monthExpenses(), pct=state.money.monthlyBudget?spent/state.money.monthlyBudget*100:0, cs=collectionStats();
+  const items=state.money.collection||[];
   return `
     <div class="section-title"><h2>Money</h2><small>${pct.toFixed(0)}% budget</small></div>
-    <div class="card">
-      <div class="money-overview">
-        <div><div class="label">Bulan ini</div><div class="big">${fmtRp(spent)}</div><div class="progress" style="margin-top:13px"><i style="--w:${clamp(pct,0,100)}%"></i></div></div>
-        <div class="money-mini"><b>${fmtRp(state.money.savings)}</b><span>Celengan</span><b style="margin-top:10px">${fmtRp(target)}</b><span>Target part</span></div>
-      </div>
-      <div class="chips" style="margin-top:13px"><button class="chip" data-action="expense-sheet">Tambah Expense</button><button class="chip" data-action="collection-sheet">Tambah Koleksi</button><button class="chip" data-action="saving-add" data-amount="10000">Celengan +10k</button><button class="chip" data-action="saving-add" data-amount="25000">+25k</button></div>
-    </div>
+    <div class="money-hero card"><div class="between"><div><div class="label">Bulan ini</div><div class="big">${fmtRp(spent)}</div></div><span class="pill ${pct>90?'red':pct>70?'blue':'green'}">Budget ${fmtRp(state.money.monthlyBudget)}</span></div><div class="progress" style="margin-top:13px"><i style="--w:${clamp(pct,0,100)}%"></i></div><div class="chips" style="margin-top:13px"><button class="chip" data-action="expense-sheet">Tambah Expense</button><button class="chip" data-action="saving-add" data-amount="10000">Celengan +10k</button><button class="chip" data-action="collection-sheet">+ Collection</button></div></div>
 
-    <div class="section-title"><h2>Garage Collection</h2><small>${cols.length} item</small></div>
-    <div class="card">
-      <div class="collection-head"><div><b>Konsep & part target</b><p>Masukin style motor, stop lamp, knalpot, velg, link toko, dan foto biar gak lupa.</p></div><span class="pill blue">Bought ${fmtRp(bought)}</span></div>
-      ${cols.length?`<div class="collection-grid">${cols.slice(0,8).map(renderCollectionCard).join('')}</div>`:`<div class="collection-empty">Belum ada koleksi. Tambah stop lamp, knalpot, style Thai/retro, atau part incaran.</div>`}
-    </div>
+    <div class="section-title"><h2>Collection</h2><small>${items.length} item</small></div>
+    <div class="collection-summary card tight"><div><span>Total wishlist</span><b>${fmtRp(cs.total)}</b></div><div><span>Sudah kebeli</span><b>${fmtRp(cs.bought)}</b></div><div><span>Sisa target</span><b>${fmtRp(cs.pending)}</b></div></div>
+    <div class="chips style-chips"><button class="chip" data-action="collection-sheet">Tambah part</button><button class="chip" data-action="concept-sheet">Catatan konsep</button>${COLLECTION_CATEGORIES.slice(0,5).map(c=>`<button class="chip" data-action="collection-sheet" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>
+    <div class="collection-list">${items.length?items.map(renderCollectionCard).join(''):COLLECTION_IDEAS.map(renderIdeaCard).join('')}</div>
+
+    <div class="section-title"><h2>Konsep / Style</h2><small>pengetahuan</small></div>
+    <div class="concept-list">${renderConceptNotes()}</div>
 
     <div class="section-title"><h2>Breakdown</h2><small>kategori</small></div><div class="card"><canvas id="moneyChart" class="chart"></canvas></div>
-    <div class="section-title"><h2>Transaksi</h2><small>${state.money.expenses.length}</small></div><div class="list">${state.money.expenses.slice(0,10).map(e=>`<div class="item"><div class="item-icon">${e.cat==='Fuel'?svgIcon('fuel'):e.cat==='Service'?svgIcon('wrench'):e.cat==='Modif'?svgIcon('collection'):svgIcon('money')}</div><div class="item-main"><b>${esc(e.title)}</b><span>${e.cat} · ${fmtDate(e.ts)} ${e.note?`· ${esc(e.note)}`:''}</span></div><b>${fmtRp(e.amount)}</b></div>`).join('') || '<div class="card tight muted small">Belum ada transaksi.</div>'}</div>`;
+    <div class="section-title"><h2>Transaksi</h2><small>${state.money.expenses.length}</small></div><div class="list">${state.money.expenses.slice(0,12).map(e=>`<div class="item"><div class="item-icon">${e.cat==='Fuel'?svgIcon('fuel'):e.cat==='Service'?svgIcon('wrench'):e.cat==='Modif'?svgIcon('spark'):svgIcon('money')}</div><div class="item-main"><b>${esc(e.title)}</b><span>${e.cat} · ${fmtDate(e.ts)} ${e.note?`· ${esc(e.note)}`:''}</span></div><b>${fmtRp(e.amount)}</b></div>`).join('') || '<div class="card tight muted small">Belum ada transaksi.</div>'}</div>`;
 }
+
 function renderAssist(){
   const guideBtns=Object.entries(GUIDES).map(([k,g])=>`<button class="item" data-action="guide" data-key="${k}"><div class="item-icon">${g.icon}</div><div class="item-main"><b>${g.title}</b><span>${g.tag} · step-by-step</span></div></button>`).join('');
   return `
     <div class="section-title"><h2>NGR Assist</h2><small>Kang Rusdi</small></div>
-    <div class="card"><div class="chat" id="chat">${state.assist.messages.slice(-12).map(m=>`<div class="msg ${m.role==='user'?'user':'bot'}">${esc(m.text)}</div>`).join('')}</div><div class="row" style="margin-top:12px"><input id="assistInput" placeholder="Tanya motor/fuel/money..."/><button class="btn primary" data-action="assist-send">Kirim</button></div></div>
+    <div class="card"><div class="chat" id="chat">${state.assist.messages.slice(-10).map(m=>`<div class="msg ${m.role==='user'?'user':'bot'}">${esc(m.text)}</div>`).join('')}</div><div class="row" style="margin-top:12px"><input id="assistInput" placeholder="Tanya mogok / busi / fuel / money..."/><button class="btn primary" data-action="assist-send">Kirim</button></div></div>
+
+    <div class="section-title"><h2>FI Code Helper</h2><small>injeksi</small></div>
+    <div class="fi-helper card tight">
+      <p class="small muted">Panjang = 10, pendek = 1. Ini cuma diagnosa awal, bukan vonis part.</p>
+      <div class="grid2"><div class="field"><label>Kedip panjang</label><input id="fiLong" type="number" min="0" value="0"/></div><div class="field"><label>Kedip pendek</label><input id="fiShort" type="number" min="0" value="0"/></div></div>
+      <button class="btn primary block" data-action="fi-calc">Hitung kode FI</button>
+      <div class="fi-code-grid">${Object.entries(FI_CODES).map(([k,v])=>`<button data-action="fi-pick" data-code="${k}"><b>${k}</b><span>${esc(v)}</span></button>`).join('')}</div>
+    </div>
+
     <div class="section-title"><h2>Emergency & Guide</h2><small>darurat</small></div><div class="list">${guideBtns}</div>
     <div class="section-title"><h2>Problem Diary</h2><small>${state.assist.problems.length}</small></div><div class="list">${state.assist.problems.slice(0,10).map(p=>`<div class="item"><div class="item-icon">!</div><div class="item-main"><b>${esc(p.title)}</b><span>${p.severity} · ${fmtDate(p.ts)} · ${esc(p.note||'')}</span></div></div>`).join('') || '<div class="card tight muted small">Belum ada problem dicatat.</div>'}</div>`;
 }
+
 
 function setTab(tab){ activeTab=tab; render(); if(tab==='maps') setTimeout(ensureMap,100); }
 document.addEventListener('click', e=>{
@@ -316,11 +340,13 @@ document.addEventListener('click', e=>{
   if(a==='km-sheet') return openKmSheet();
   if(a==='fuel-sheet') return openFuelSheet();
   if(a==='expense-sheet') return openExpenseSheet();
-  if(a==='collection-sheet') return openCollectionSheet();
+  if(a==='collection-sheet') return openCollectionSheet(el.dataset);
   if(a==='collection-detail') return openCollectionDetail(el.dataset.id);
-  if(a==='collection-open') return openCollectionLink(el.dataset.id);
-  if(a==='collection-delete') return deleteCollection(el.dataset.id);
-  if(a==='collection-bought') return markCollectionBought(el.dataset.id);
+  if(a==='collection-buy') return markCollectionBought(el.dataset.id);
+  if(a==='concept-sheet') return openConceptSheet();
+  if(a==='open-link') return openExternal(el.dataset.url);
+  if(a==='fi-calc') return calcFiCode();
+  if(a==='fi-pick') return showFiCode(num(el.dataset.code));
   if(a==='service-sheet') return openServiceSheet();
   if(a==='km-add') return addDailyKm(num(el.dataset.km), 'Quick KM');
   if(a==='fuel-add') return addFuel(el.dataset.type, num(el.dataset.liter));
@@ -339,51 +365,59 @@ document.addEventListener('click', e=>{
 });
 $('#fab').addEventListener('click', openQuickSheet);
 $('.sheet-backdrop').addEventListener('click', closeSheet);
-document.addEventListener('change', e=>{ if(e.target?.id==='importFile') importData(e); if(e.target?.id==='inColPhoto') previewCollectionPhoto(e); });
+document.addEventListener('change', e=>{ if(e.target?.id==='importFile') importData(e); });
 
 function showSheet(html){ $('#sheetContent').innerHTML=html; $('#sheetWrap').classList.add('show'); $('#sheetWrap').setAttribute('aria-hidden','false'); }
 function closeSheet(){ $('#sheetWrap').classList.remove('show'); $('#sheetWrap').setAttribute('aria-hidden','true'); }
-function openQuickSheet(){ showSheet(`<h2>Quick Add</h2><div class="quick-grid"><button class="quick primary" onclick="closeSheet();setTimeout(openKmSheet,90)">${svgIcon('km')}KM</button><button class="quick" onclick="closeSheet();setTimeout(openFuelSheet,90)">${svgIcon('fuel')}Fuel</button><button class="quick" onclick="closeSheet();setTimeout(openServiceSheet,90)">${svgIcon('wrench')}Service</button><button class="quick" onclick="closeSheet();setTimeout(openExpenseSheet,90)">${svgIcon('money')}Money</button><button class="quick" onclick="closeSheet();setTimeout(openCollectionSheet,90)">${svgIcon('collection')}Koleksi</button></div><button class="btn block" style="margin-top:12px" onclick="closeSheet()">Tutup</button>`); }
+function openQuickSheet(){ showSheet(`<h2>Quick Add</h2><div class="quick-grid"><button class="quick primary" onclick="closeSheet();setTimeout(openKmSheet,90)">${svgIcon('km')}KM</button><button class="quick" onclick="closeSheet();setTimeout(openFuelSheet,90)">${svgIcon('fuel')}Fuel</button><button class="quick" onclick="closeSheet();setTimeout(openServiceSheet,90)">${svgIcon('wrench')}Service</button><button class="quick" onclick="closeSheet();setTimeout(openExpenseSheet,90)">${svgIcon('money')}Money</button></div><button class="btn block" style="margin-top:12px" onclick="closeSheet()">Tutup</button>`); }
 function openKmSheet(){ showSheet(`<h2>Input Daily KM</h2><div class="field"><label>KM hari ini</label><input id="inKm" type="number" step="0.1" placeholder="contoh 12.5" /></div><div class="field"><label>Catatan</label><input id="inKmNote" placeholder="sekolah, bengkel, muter sore" /></div><button class="btn primary block" onclick="submitKm()">Simpan KM</button>`); }
 function submitKm(){ const km=num($('#inKm').value); addDailyKm(km, $('#inKmNote').value || 'Daily KM'); closeSheet(); }
 function openFuelSheet(){ showSheet(`<h2>Isi BBM</h2><div class="field"><label>Jenis</label><select id="inFuelType"><option>Pertalite</option><option>Pertamax</option><option>Shell</option></select></div><div class="grid2"><div class="field"><label>Liter</label><input id="inFuelL" type="number" step="0.01" placeholder="1.5" /></div><div class="field"><label>Total Rp opsional</label><input id="inFuelRp" type="number" placeholder="auto" /></div></div><button class="btn primary block" onclick="submitFuel()">Simpan Fuel</button>`); }
 function submitFuel(){ const type=$('#inFuelType').value, liters=num($('#inFuelL').value), amount=num($('#inFuelRp').value, liters*(state.fuel.prices[type]||10000)); addFuel(type, liters, amount); closeSheet(); }
 function openExpenseSheet(){ showSheet(`<h2>Tambah Expense</h2><div class="field"><label>Judul</label><input id="inExpTitle" placeholder="contoh beli oli" /></div><div class="grid2"><div class="field"><label>Kategori</label><select id="inExpCat"><option>Service</option><option>Fuel</option><option>Modif</option><option>Tools</option><option>Other</option></select></div><div class="field"><label>Nominal</label><input id="inExpAmount" type="number" /></div></div><div class="field"><label>Catatan</label><input id="inExpNote" /></div><button class="btn primary block" onclick="submitExpense()">Simpan Money</button>`); }
-
 function submitExpense(){ addExpense($('#inExpCat').value, $('#inExpTitle').value || 'Expense', num($('#inExpAmount').value), $('#inExpNote').value||''); closeSheet(); }
-function openCollectionSheet(){
-  const cats=COLLECTION_CATS.map(c=>`<option>${c}</option>`).join('');
-  const stats=COLLECTION_STATUS.map(s=>`<option>${s}</option>`).join('');
-  showSheet(`<h2>Tambah Koleksi Garage</h2>
-    <div class="field"><label>Nama item / konsep</label><input id="inColTitle" placeholder="Stop lamp running text, knalpot, Thai look..." /></div>
-    <div class="grid2"><div class="field"><label>Kategori</label><select id="inColCat">${cats}</select></div><div class="field"><label>Status</label><select id="inColStatus">${stats}</select></div></div>
-    <div class="grid2"><div class="field"><label>Target harga</label><input id="inColPrice" type="number" placeholder="250000" /></div><div class="field"><label>Link toko/referensi</label><input id="inColLink" placeholder="https://..." /></div></div>
-    <div class="field"><label>Foto URL opsional</label><input id="inColImg" placeholder="https://gambar..." /></div>
-    <label class="file-like"><input id="inColPhoto" type="file" accept="image/*" style="display:none"/>Upload foto dari HP</label>
-    <div id="colPreview" class="photo-preview" style="margin-top:10px">Belum ada foto</div>
-    <div class="field"><label>Catatan</label><textarea id="inColNote" placeholder="Ukuran, warna, toko, cocok sama konsep apa..."></textarea></div>
-    <button class="btn primary block" onclick="submitCollection()">Simpan Koleksi</button>`);
-}
-function previewCollectionPhoto(e){
-  const f=e.target.files?.[0]; if(!f) return;
-  if(f.size>1200000) toast('Foto kegedean, coba screenshot/kompres dulu');
-  const fr=new FileReader(); fr.onload=()=>{ const prev=$('#colPreview'); if(prev){ prev.innerHTML=`<img src="${fr.result}" alt="preview" />`; prev.dataset.img=fr.result; } }; fr.readAsDataURL(f);
+
+function openCollectionSheet(data={}){
+  const catOpts = COLLECTION_CATEGORIES.map(c=>`<option ${data.cat===c?'selected':''}>${esc(c)}</option>`).join('');
+  const styleOpts = MODIF_STYLES.map(c=>`<option>${esc(c)}</option>`).join('');
+  showSheet(`<h2>Tambah Collection</h2>
+    <div class="field"><label>Nama produk/part</label><input id="colName" value="${esc(data.name||'')}" placeholder="contoh Stop lamp running LED" /></div>
+    <div class="grid2"><div class="field"><label>Kategori</label><select id="colCat">${catOpts}</select></div><div class="field"><label>Style/konsep</label><select id="colStyle">${styleOpts}</select></div></div>
+    <div class="grid2"><div class="field"><label>Harga target</label><input id="colPrice" type="number" value="${esc(data.price||'')}" placeholder="85000" /></div><div class="field"><label>Status</label><select id="colStatus"><option>Wishlist</option><option>Nabung</option><option>Bought</option><option>Terpasang</option></select></div></div>
+    <div class="field"><label>Link produk</label><input id="colLink" placeholder="https://shopee/tokopedia/tiktok..." /></div>
+    <div class="field"><label>Foto URL opsional</label><input id="colImage" placeholder="link gambar produk, boleh dikosongin" /></div>
+    <div class="field"><label>Catatan / pengetahuan</label><textarea id="colNote" placeholder="cocok buat Beat FI 2014, kelebihan/kekurangan, ukuran, warna, dll"></textarea></div>
+    <button class="btn primary block" onclick="submitCollection()">Simpan Collection</button>`);
 }
 function submitCollection(){
-  const img=($('#colPreview')?.dataset.img || $('#inColImg')?.value || '').trim();
-  const title=($('#inColTitle')?.value || '').trim();
-  if(!title) return toast('Nama item belum diisi');
-  state.money.collections.unshift({id:id(),ts:now(),title,cat:$('#inColCat')?.value||'Other',status:$('#inColStatus')?.value||'Wishlist',price:num($('#inColPrice')?.value),link:($('#inColLink')?.value||'').trim(),img,note:($('#inColNote')?.value||'').trim()});
-  save(); closeSheet(); render(); toast('Koleksi disimpan');
+  const item={id:id(), ts:now(), name:$('#colName').value.trim()||'Part wishlist', cat:$('#colCat').value, style:$('#colStyle').value, price:num($('#colPrice').value), status:$('#colStatus').value, link:$('#colLink').value.trim(), image:$('#colImage').value.trim(), note:$('#colNote').value.trim()};
+  state.money.collection.unshift(item);
+  if((item.status==='Bought'||item.status==='Terpasang') && item.price>0){ state.money.expenses.unshift({id:id(),ts:now(),cat:'Modif',title:item.name,amount:item.price,note:'collection'}); }
+  save(); closeSheet(); render(); toast('Collection disimpan');
 }
-function openCollectionDetail(cid){
-  const c=state.money.collections.find(x=>x.id===cid); if(!c) return;
-  const img=c.img?`<div class="photo-preview"><img src="${esc(c.img)}" alt="${esc(c.title)}" /></div>`:'<div class="photo-preview">Belum ada foto</div>';
-  showSheet(`<h2>${esc(c.title)}</h2>${img}<div class="grid2" style="margin-top:12px"><div class="card tight"><div class="label">Kategori</div><b>${esc(c.cat)}</b></div><div class="card tight"><div class="label">Harga target</div><b>${fmtRp(c.price)}</b></div></div><p class="small muted">${esc(c.note||'Belum ada catatan.')}</p><div class="link-row"><button class="btn" onclick="markCollectionBought('${c.id}')">Tandai Bought</button><button class="btn" onclick="openCollectionLink('${c.id}')">Buka Link</button></div><button class="btn danger block" style="margin-top:10px" onclick="deleteCollection('${c.id}')">Hapus</button>`);
+function openCollectionDetail(idv){
+  const item=(state.money.collection||[]).find(x=>x.id===idv); if(!item) return;
+  showSheet(`<h2>${esc(item.name)}</h2>
+    <div class="collection-detail">
+      <div class="collection-photo big-photo ${item.image?'has-img':''}" ${item.image?`style="background-image:url('${esc(item.image)}')"`:''}>${item.image?'':svgIcon(itemIcon(item.cat))}</div>
+      <div class="card tight"><div class="between"><div><div class="label">${esc(item.cat)} · ${esc(item.style||'')}</div><div class="value">${fmtRp(item.price||0)}</div></div><span class="pill blue">${esc(item.status||'Wishlist')}</span></div><p class="small muted">${esc(item.note||'Belum ada catatan.')}</p></div>
+    </div>
+    <div class="grid2" style="margin-top:12px"><button class="btn" data-action="open-link" data-url="${esc(item.link||'')}">Buka Link</button><button class="btn primary" data-action="collection-buy" data-id="${item.id}">Tandai Dibeli</button></div>`);
 }
-function openCollectionLink(cid){ const c=state.money.collections.find(x=>x.id===cid); if(!c?.link) return toast('Belum ada link'); window.open(c.link, '_blank'); }
-function markCollectionBought(cid){ const c=state.money.collections.find(x=>x.id===cid); if(!c) return; c.status='Bought'; if(c.price) addExpense('Modif', c.title, c.price, 'Garage Collection'); save(); closeSheet(); render(); toast('Masuk Bought + expense'); }
-function deleteCollection(cid){ state.money.collections=state.money.collections.filter(x=>x.id!==cid); save(); closeSheet(); render(); toast('Koleksi dihapus'); }
+function markCollectionBought(idv){
+  const item=(state.money.collection||[]).find(x=>x.id===idv); if(!item) return;
+  const was=item.status; item.status='Bought'; item.boughtTs=now();
+  if(was!=='Bought' && was!=='Terpasang' && num(item.price)>0){ state.money.expenses.unshift({id:id(),ts:now(),cat:'Modif',title:item.name,amount:num(item.price),note:'collection bought'}); }
+  save(); closeSheet(); render(); toast('Masuk expense Modif');
+}
+function openConceptSheet(){
+  const opts=MODIF_STYLES.map(c=>`<option>${esc(c)}</option>`).join('');
+  showSheet(`<h2>Catatan Konsep</h2><div class="field"><label>Style</label><select id="conceptStyle">${opts}</select></div><div class="field"><label>Catatan pengetahuan</label><textarea id="conceptNote" placeholder="misal: Thai look cocok R14, shock 290mm, stoplamp clean, warna biru/dark grey..."></textarea></div><button class="btn primary block" onclick="submitConceptNote()">Simpan Catatan</button>`);
+}
+function submitConceptNote(){ const note=$('#conceptNote').value.trim(); if(!note) return toast('Catatan kosong'); state.money.concepts.unshift({id:id(),ts:now(),style:$('#conceptStyle').value,note}); save(); closeSheet(); render(); toast('Konsep disimpan'); }
+function openExternal(url){ if(!url) return toast('Link kosong'); window.open(url,'_blank','noopener,noreferrer'); }
+function calcFiCode(){ const code=num($('#fiLong').value)*10 + num($('#fiShort').value); showFiCode(code); }
+function showFiCode(code){ const desc=FI_CODES[code] || 'Kode belum ada di daftar ringkas. Catat pola dan cek manual/AHASS.'; showSheet(`<h2>Kode FI ${code}</h2><div class="card tight"><b>${esc(desc)}</b><p class="small muted">Panjang dihitung 10, pendek 1. Cek aki, soket, kabel, dan gejala dulu. Jangan langsung vonis part.</p></div><div class="grid2" style="margin-top:12px"><button class="btn" onclick="problemFromGuide('FI code ${code}')">Catat Problem</button><button class="btn primary" onclick="closeSheet()">Oke</button></div>`); }
 
 function openServiceSheet(){ const opts=SERVICES.map(s=>`<option value="${s.key}">${s.name}</option>`).join(''); showSheet(`<h2>Catat Service</h2><div class="field"><label>Part</label><select id="inService">${opts}</select></div><div class="field"><label>Biaya opsional</label><input id="inServiceCost" type="number" placeholder="0" /></div><button class="btn primary block" onclick="submitService()">Catat sudah diganti</button>`); }
 function submitService(){ const key=$('#inService').value; const cost=num($('#inServiceCost').value); markService(key, cost); closeSheet(); }
@@ -494,17 +528,17 @@ async function askRusdi(q){
 function localRusdi(q){
   const low=q.toLowerCase();
   if(low.includes('rute')||low.includes('maps')) return routeDraft.result ? `Rute ${fmtKm(routeDraft.result.km)} via ${routeDraft.result.provider}. Estimasi ${fmtRp(routeDraft.result.cost)}. Fuel range ${fmtKm(fuelRange())}.` : 'Pilih start + tujuan di Maps, lalu Hitung Jalan dulu.';
-  if(low.includes('koleksi')||low.includes('part')||low.includes('modif')) return `Koleksi garage ada ${(state.money.collections||[]).length} item dengan target ${fmtRp(collectionTotal())}. Kalau budget bulanan mulai sesak, beli part status Target dulu, Wishlist belakangan.`;
   if(low.includes('boros')||low.includes('uang')||low.includes('budget')) return `Money bulan ini ${fmtRp(monthExpenses())} dari budget ${fmtRp(state.money.monthlyBudget)}. Kalau udah lewat 75%, tahan modif dulu, prioritaskan service.`;
   if(low.includes('busi')||low.includes('mati')) return 'Cek cepat: bensin, indikator FI, aki/starter, sekring, kop busi. Kalau bunyi kasar atau mesin mati-mati, jangan dipaksa jauh.';
+  if(low.includes('collection')||low.includes('modif')||low.includes('wishlist')) return `Collection lu ada ${(state.money.collection||[]).length} item. Total target ${fmtRp(collectionStats().total)}. Prioritasin service dulu kalau money sudah lewat 75% budget.`;
   return localScan();
 }
 
 function drawFuelChart(){ const c=$('#fuelChart'); if(!c) return; let pts=state.fuel.balance.slice(-30).map(x=>num(x.liters)); if(!pts.length) pts=[0,state.fuel.liters]; if(pts[0]!==0) pts=[0,...pts]; drawLine(c,pts,0,state.fuel.tankLiters); }
 function drawMoneyChart(){ const c=$('#moneyChart'); if(!c) return; const labels=['Fuel','Service','Modif','Tools','Other']; const vals=labels.map(monthExpenses); drawBars(c,labels,vals); }
 function prepCanvas(c){ const dpr=window.devicePixelRatio||1, r=c.getBoundingClientRect(); c.width=r.width*dpr; c.height=r.height*dpr; const ctx=c.getContext('2d'); ctx.scale(dpr,dpr); return [ctx,r.width,r.height]; }
-function drawLine(c,pts,min=0,max=1){ const [ctx,w,h]=prepCanvas(c); ctx.clearRect(0,0,w,h); ctx.strokeStyle='rgba(255,255,255,.11)'; ctx.lineWidth=1; for(let i=0;i<=4;i++){const y=14+(h-28)*i/4;ctx.beginPath();ctx.moveTo(8,y);ctx.lineTo(w-8,y);ctx.stroke();} const span=Math.max(.1,max-min); ctx.strokeStyle='#58e2dc'; ctx.lineWidth=3; ctx.beginPath(); pts.forEach((p,i)=>{ const x=12+(w-24)*(i/Math.max(1,pts.length-1)); const y=h-14-(h-28)*((clamp(p,min,max)-min)/span); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font='10px system-ui'; ctx.fillText(`${max.toFixed(1)}L`,10,12); ctx.fillText('0L',10,h-4); }
-function drawBars(c,labels,vals){ const [ctx,w,h]=prepCanvas(c); const max=Math.max(...vals,1); ctx.clearRect(0,0,w,h); labels.forEach((l,i)=>{ const bw=(w-28)/labels.length-8, x=14+i*((w-28)/labels.length)+4, bh=(h-38)*(vals[i]/max); ctx.fillStyle='rgba(118,167,255,.82)'; ctx.fillRect(x,h-24-bh,bw,bh); ctx.fillStyle='rgba(255,255,255,.62)'; ctx.font='10px system-ui'; ctx.fillText(l.slice(0,6),x,h-7); }); }
+function drawLine(c,pts,min=0,max=1){ const [ctx,w,h]=prepCanvas(c); ctx.clearRect(0,0,w,h); ctx.strokeStyle='rgba(22,32,51,.12)'; ctx.lineWidth=1; for(let i=0;i<=4;i++){const y=14+(h-28)*i/4;ctx.beginPath();ctx.moveTo(8,y);ctx.lineTo(w-8,y);ctx.stroke();} const span=Math.max(.1,max-min); ctx.strokeStyle='#58e2dc'; ctx.lineWidth=3; ctx.beginPath(); pts.forEach((p,i)=>{ const x=12+(w-24)*(i/Math.max(1,pts.length-1)); const y=h-14-(h-28)*((clamp(p,min,max)-min)/span); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); ctx.fillStyle='rgba(22,32,51,.55)'; ctx.font='10px system-ui'; ctx.fillText(`${max.toFixed(1)}L`,10,12); ctx.fillText('0L',10,h-4); }
+function drawBars(c,labels,vals){ const [ctx,w,h]=prepCanvas(c); const max=Math.max(...vals,1); ctx.clearRect(0,0,w,h); labels.forEach((l,i)=>{ const bw=(w-28)/labels.length-8, x=14+i*((w-28)/labels.length)+4, bh=(h-38)*(vals[i]/max); ctx.fillStyle='rgba(47,140,255,.58)'; ctx.fillRect(x,h-24-bh,bw,bh); ctx.fillStyle='rgba(22,32,51,.58)'; ctx.font='10px system-ui'; ctx.fillText(l.slice(0,6),x,h-7); }); }
 
 function exportData(){ const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`ngr-neo-backup-${todayKey()}.json`; a.click(); URL.revokeObjectURL(url); toast('Export dibuat'); }
 function importData(e){ const file=e.target.files?.[0]; if(!file) return; const fr=new FileReader(); fr.onload=()=>{ try{ state=normalize(JSON.parse(fr.result)); save(); closeSheet(); render(); toast('Import berhasil'); }catch(err){ toast('Import gagal'); } }; fr.readAsText(file); }
@@ -512,4 +546,4 @@ function importData(e){ const file=e.target.files?.[0]; if(!file) return; const 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js').catch(()=>{});
 render();
 
-Object.assign(window, {closeSheet, openKmSheet, openFuelSheet, openServiceSheet, openExpenseSheet, submitKm, submitFuel, submitExpense, openCollectionSheet, submitCollection, previewCollectionPhoto, openCollectionDetail, openCollectionLink, markCollectionBought, deleteCollection, submitService, markService, problemFromGuide, submitManualRoute, saveSettings, resetData, exportData});
+Object.assign(window, {closeSheet, openKmSheet, openFuelSheet, openServiceSheet, openExpenseSheet, openCollectionSheet, submitCollection, openConceptSheet, submitConceptNote, submitKm, submitFuel, submitExpense, submitService, markService, problemFromGuide, submitManualRoute, saveSettings, resetData, exportData});
