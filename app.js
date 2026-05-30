@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'NGR Neo HTML v1.0 Mapfix';
+const VERSION = 'NGR Neo HTML v1.1 Clean Home';
 const STORE_KEY = 'ngr_neo_html_mapfix_v1';
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
@@ -131,48 +131,83 @@ function render(){
   $('#tab-assist').innerHTML = renderAssist();
   $$('.screen').forEach(x=>x.classList.toggle('active', x.id === `tab-${activeTab}`));
   $$('.nav-item').forEach(x=>x.classList.toggle('active', x.dataset.tab===activeTab));
+  $('#fab')?.classList.toggle('fab-hidden', activeTab==='home' || activeTab==='maps');
   if(activeTab==='maps') setTimeout(ensureMap, 80);
   setTimeout(()=>{drawFuelChart();drawMoneyChart();},80);
 }
 function renderHome(){
-  const health=overallHealth(), st=streakInfo(), p=servicePriority()[0];
+  const health=overallHealth(), st=streakInfo(), p=servicePriority()[0], ph=serviceHealth(p), pr=serviceRemain(p);
+  const todayDone = dailyLogs().length>0;
   return `
-    <div class="card hero">
-      <div class="ring" style="--pct:${health.toFixed(0)}"><div><b>${health.toFixed(0)}%</b><span>Health</span></div></div>
-      <div class="grid2">
-        <div class="stat"><b>${fmtKm(state.bike.virtualKm)}</b><span>Virtual KM</span></div>
-        <div class="stat"><b>${fmtL(state.fuel.liters)}</b><span>Fuel · ${fmtKm(fuelRange())}</span></div>
-        <div class="stat"><b>${st.streak} hari</b><span>Streak input</span></div>
-        <div class="stat"><b>${fmtRp(monthExpenses())}</b><span>Money bulan ini</span></div>
+    <div class="home-id-card card">
+      <div class="id-top">
+        <div class="bike-logo-wrap"><img src="icon-192.png" alt="NGR" /></div>
+        <div class="bike-title-wrap">
+          <div class="eyebrow">NGR Neo</div>
+          <h1>${esc(state.bike.name || 'Honda BeAT FI 2014')}</h1>
+          <p>Liquid Garage OS · daily motor log</p>
+        </div>
+        <span class="status-dot ${health<40?'danger':health<70?'warn':'ok'}"></span>
+      </div>
+      <div class="id-metrics">
+        <div class="id-metric main"><b>${fmtKm(state.bike.virtualKm)}</b><span>Virtual KM</span></div>
+        <div class="id-metric"><b>${fmtL(state.fuel.liters)}</b><span>Fuel</span></div>
+        <div class="id-metric"><b>${fmtKm(fuelRange())}</b><span>Range</span></div>
+        <div class="id-metric"><b>${health.toFixed(0)}%</b><span>Health</span></div>
       </div>
     </div>
 
-    <div class="section-title"><h2>Daily KM</h2><small>${dailyLogs().length?'sudah input':'belum input'}</small></div>
-    <div class="card">
-      <div class="between"><div><b>Input harian</b><div class="small muted">GPS dibuang. Pakai quick KM atau hasil Maps.</div></div><span class="pill ${dailyLogs().length?'green':'red'}">${st.streak} streak</span></div>
-      <div class="chips" style="margin-top:13px">
+    <div class="daily-card card">
+      <div class="daily-head">
+        <div>
+          <div class="label">Hari ini</div>
+          <h2>${fmtKm(todayKm())}</h2>
+          <p>${todayDone ? 'Sudah input. Aman, streak jalan.' : 'Belum input KM. Isi 0 km juga tetap dihitung.'}</p>
+        </div>
+        <span class="pill ${todayDone?'green':'red'}">${st.streak} streak</span>
+      </div>
+      <div class="chips compact-chips">
         <button class="chip" data-action="km-add" data-km="0">0 km</button>
         <button class="chip" data-action="km-add" data-km="5">+5</button>
         <button class="chip" data-action="km-add" data-km="10">+10</button>
-        <button class="chip" data-action="km-add" data-km="15">+15</button>
         <button class="chip" data-action="km-sheet">Custom</button>
+        <button class="chip" data-tabgo="maps">Maps</button>
       </div>
-      ${renderCalendar()}
+      ${renderStreakStrip()}
     </div>
 
-    <div class="quick-grid" style="margin-top:14px">
-      <button class="quick primary" data-action="km-sheet">${svgIcon('km')}KM</button>
-      <button class="quick" data-action="fuel-sheet">${svgIcon('fuel')}Fuel</button>
-      <button class="quick" data-action="service-sheet">${svgIcon('wrench')}Service</button>
-      <button class="quick" data-action="expense-sheet">${svgIcon('money')}Money</button>
+    <div class="home-actions">
+      <button class="action-chip primary" data-action="km-sheet">${svgIcon('km')}<span>KM</span></button>
+      <button class="action-chip" data-action="fuel-sheet">${svgIcon('fuel')}<span>Fuel</span></button>
+      <button class="action-chip" data-action="service-sheet">${svgIcon('wrench')}<span>Service</span></button>
+      <button class="action-chip" data-action="expense-sheet">${svgIcon('money')}<span>Money</span></button>
     </div>
 
-    <div class="section-title"><h2>Service Priority</h2><small>terdekat</small></div>
-    <div class="list">${servicePriority().slice(0,4).map(renderService).join('')}</div>
+    <div class="section-title slim"><h2>Prioritas</h2><small>cukup 1 yang penting</small></div>
+    <button class="service-focus card" data-action="service-detail" data-key="${p.key}">
+      <div class="item-icon">${svgIcon(p.icon)}</div>
+      <div class="item-main">
+        <b>${p.name}</b>
+        <span>Sisa ${fmtKm(pr.km)} / ${pr.days} hari. ${ph<40?'Mulai siapin servis.':'Masih aman dipantau.'}</span>
+      </div>
+      <div class="mini-ring" style="--pct:${ph.toFixed(0)}">${ph.toFixed(0)}%</div>
+    </button>
 
-    <div class="section-title"><h2>Kang Rusdi Scan</h2><small>ringkas</small></div>
-    <div class="card"><div class="small">${localScan()}</div><button class="btn block" style="margin-top:12px" data-tabgo="assist">Buka Assist</button></div>
+    <div class="rusdi-compact card">
+      <div class="between">
+        <div>
+          <div class="label">Kang Rusdi</div>
+          <p>${todayDone ? `Hari ini masuk ${fmtKm(todayKm())}. ` : 'Hari ini belum input. '}Fuel ${fmtL(state.fuel.liters)}, range ${fmtKm(fuelRange())}. Money bulan ini ${fmtRp(monthExpenses())}.</p>
+        </div>
+        <button class="btn" data-tabgo="assist">Buka</button>
+      </div>
+    </div>
   `;
+}
+function renderStreakStrip(){
+  let html='<div class="streak-strip">'; const d=new Date();
+  for(let i=6;i>=0;i--){ const day=new Date(d.getFullYear(),d.getMonth(),d.getDate()-i); const key=dateKey(day.getTime()); const logs=dailyLogs(key); const km=logs.reduce((a,x)=>a+num(x.km),0); const cls=logs.length?(km>0?'done':'zero'):''; html+=`<div class="streak-dot ${cls} ${key===todayKey()?'today':''}"><small>${day.toLocaleDateString('id-ID',{weekday:'short'}).slice(0,1)}</small><b>${day.getDate()}</b></div>`; }
+  return html+'</div>';
 }
 function renderCalendar(){
   let html='<div class="calendar">'; const d=new Date();
@@ -394,10 +429,10 @@ function localRusdi(q){
   return localScan();
 }
 
-function drawFuelChart(){ const c=$('#fuelChart'); if(!c) return; const pts=state.fuel.balance.slice(-30).map(x=>num(x.liters)); if(!pts.length) pts.push(state.fuel.liters); drawLine(c,pts); }
+function drawFuelChart(){ const c=$('#fuelChart'); if(!c) return; let pts=state.fuel.balance.slice(-30).map(x=>num(x.liters)); if(!pts.length) pts=[0,state.fuel.liters]; if(pts[0]!==0) pts=[0,...pts]; drawLine(c,pts,0,state.fuel.tankLiters); }
 function drawMoneyChart(){ const c=$('#moneyChart'); if(!c) return; const labels=['Fuel','Service','Modif','Tools','Other']; const vals=labels.map(monthExpenses); drawBars(c,labels,vals); }
 function prepCanvas(c){ const dpr=window.devicePixelRatio||1, r=c.getBoundingClientRect(); c.width=r.width*dpr; c.height=r.height*dpr; const ctx=c.getContext('2d'); ctx.scale(dpr,dpr); return [ctx,r.width,r.height]; }
-function drawLine(c,pts){ const [ctx,w,h]=prepCanvas(c); ctx.clearRect(0,0,w,h); ctx.strokeStyle='rgba(255,255,255,.11)'; for(let i=1;i<4;i++){ctx.beginPath();ctx.moveTo(8,h*i/4);ctx.lineTo(w-8,h*i/4);ctx.stroke();} const max=Math.max(...pts,1), min=Math.min(...pts,0), span=Math.max(.1,max-min); ctx.strokeStyle='#58e2dc'; ctx.lineWidth=3; ctx.beginPath(); pts.forEach((p,i)=>{ const x=12+(w-24)*(i/Math.max(1,pts.length-1)); const y=h-14-(h-28)*((p-min)/span); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); }
+function drawLine(c,pts,min=0,max=1){ const [ctx,w,h]=prepCanvas(c); ctx.clearRect(0,0,w,h); ctx.strokeStyle='rgba(255,255,255,.11)'; ctx.lineWidth=1; for(let i=0;i<=4;i++){const y=14+(h-28)*i/4;ctx.beginPath();ctx.moveTo(8,y);ctx.lineTo(w-8,y);ctx.stroke();} const span=Math.max(.1,max-min); ctx.strokeStyle='#58e2dc'; ctx.lineWidth=3; ctx.beginPath(); pts.forEach((p,i)=>{ const x=12+(w-24)*(i/Math.max(1,pts.length-1)); const y=h-14-(h-28)*((clamp(p,min,max)-min)/span); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }); ctx.stroke(); ctx.fillStyle='rgba(255,255,255,.55)'; ctx.font='10px system-ui'; ctx.fillText(`${max.toFixed(1)}L`,10,12); ctx.fillText('0L',10,h-4); }
 function drawBars(c,labels,vals){ const [ctx,w,h]=prepCanvas(c); const max=Math.max(...vals,1); ctx.clearRect(0,0,w,h); labels.forEach((l,i)=>{ const bw=(w-28)/labels.length-8, x=14+i*((w-28)/labels.length)+4, bh=(h-38)*(vals[i]/max); ctx.fillStyle='rgba(118,167,255,.82)'; ctx.fillRect(x,h-24-bh,bw,bh); ctx.fillStyle='rgba(255,255,255,.62)'; ctx.font='10px system-ui'; ctx.fillText(l.slice(0,6),x,h-7); }); }
 
 function exportData(){ const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`ngr-neo-backup-${todayKey()}.json`; a.click(); URL.revokeObjectURL(url); toast('Export dibuat'); }

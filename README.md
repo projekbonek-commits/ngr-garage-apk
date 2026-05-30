@@ -1,10 +1,3 @@
-# NGR Neo HTML Mapfix
+# NGR Neo HTML v1.1 Clean Home
 
-HTML/CSS/JS version with Leaflet map fallback and OSRM road routing.
-
-- Home, Maps, Fuel, Money, Assist
-- Daily KM + streak
-- Leaflet map with CARTO/OSM tiles
-- OSRM road-route calculation
-- Add route distance to Virtual KM
-- Fuel/Money/Service tracking
+Clean Home Repair: home lebih rapi, fokus identitas motor, streak ringkas, service prioritas cukup satu, FAB disembunyikan di Home/Maps, map lebih kecil dan chart fuel mulai dari 0L.
