@@ -1,7 +1,10 @@
 {
-  "name": "ngr-neo-poco-fit",
-  "version": "2.1.0",
+  "name": "ngr-neo-real-poco",
+  "version": "2.2.0",
   "private": true,
+  "scripts": {
+    "build": "echo ready"
+  },
   "dependencies": {
     "@capacitor/android": "6.1.2",
     "@capacitor/cli": "6.1.2",

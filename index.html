@@ -1,42 +1,50 @@
 <!doctype html>
-<html lang="id" data-theme="dark">
+<html lang="id">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#06101d" />
-  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover" />
+  <meta name="theme-color" content="#07111d" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>NGR Neo</title>
   <link rel="manifest" href="manifest.json" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div class="bg-orb orb-a"></div>
-  <div class="bg-orb orb-b"></div>
-  <div class="app" id="app">
+  <div class="orb orb-a"></div><div class="orb orb-b"></div>
+  <div id="app">
     <header class="topbar">
-      <button class="logo-btn" id="logoBtn" aria-label="NGR Neo">
-        <span class="neo-logo">N</span>
-      </button>
-      <div class="top-title">
-        <h1>NGR Neo</h1>
-        <p>Liquid Garage OS · Honda Beat FI 2014</p>
+      <div class="brand">
+        <img src="icon-192.png" alt="NGR" class="brand-logo" />
+        <div class="brand-copy"><b>NGR Neo</b><span>Liquid Garage OS · Honda BeAT FI 2014</span></div>
       </div>
-      <button class="icon-btn" id="themeBtn" aria-label="Ganti tema"></button>
-      <button class="icon-btn" id="settingsBtn" aria-label="Settings"></button>
+      <div class="top-actions">
+        <button class="icon-btn" id="themeBtn" aria-label="Mode">☾</button>
+        <button class="icon-btn" data-action="settings" aria-label="Settings">⚙</button>
+      </div>
     </header>
 
-    <main id="view" class="view" aria-live="polite"></main>
+    <main id="main">
+      <section id="screen-home" class="screen active"></section>
+      <section id="screen-maps" class="screen"></section>
+      <section id="screen-fuel" class="screen"></section>
+      <section id="screen-money" class="screen"></section>
+      <section id="screen-assist" class="screen"></section>
+    </main>
+
+    <nav class="tabbar">
+      <button data-tab="home" class="tab active"><span class="tab-ico">⌂</span><b>Home</b></button>
+      <button data-tab="maps" class="tab"><span class="tab-ico">⌖</span><b>Maps</b></button>
+      <button data-tab="fuel" class="tab"><span class="tab-ico">⛽</span><b>Fuel</b></button>
+      <button data-tab="money" class="tab"><span class="tab-ico">▣</span><b>Money</b></button>
+      <button data-tab="assist" class="tab"><span class="tab-ico">✳</span><b>Assist</b></button>
+    </nav>
   </div>
 
-  <nav class="bottom-nav" id="bottomNav" aria-label="Navigasi utama"></nav>
-
-  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
-  <section class="sheet" id="sheet" hidden>
-    <div class="sheet-handle"></div>
-    <div id="sheetContent"></div>
-  </section>
-
+  <div id="sheetWrap" class="sheet-wrap" aria-hidden="true">
+    <div class="sheet-backdrop" data-action="close-sheet"></div>
+    <div class="sheet"><div class="grab"></div><div id="sheetContent"></div></div>
+  </div>
+  <div id="toast" class="toast"></div>
   <script src="app.js"></script>
 </body>
 </html>
