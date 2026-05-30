@@ -1,6 +1,3 @@
-# NGR Neo v2 Liquid UI
+# NGR Neo v2.1 Poco Fit
 
-HTML/CSS/JS build dengan tampilan liquid glass, Home/Maps/Fuel/Money/Collection/Assist.
-
-## Build APK via GitHub Actions
-Upload semua file ke root repo, lalu buka Actions -> Build NGR Neo APK -> Run workflow.
+HTML/CSS/JS single-page PWA. Dibikin ulang fokus stabil di layar Poco F4: no overflow horizontal, dark/light theme, UI liquid glass, Home/Maps/Fuel/Money/Collection/Assist.

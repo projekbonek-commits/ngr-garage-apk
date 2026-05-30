@@ -1,13 +1,7 @@
 {
-  "name": "ngr-neo-liquid-ui",
-  "version": "2.0.0",
+  "name": "ngr-neo-poco-fit",
+  "version": "2.1.0",
   "private": true,
-  "description": "NGR Neo Liquid Garage OS - HTML CSS JS + Capacitor",
-  "scripts": {
-    "build": "echo static app ready",
-    "cap:add": "cap add android",
-    "cap:sync": "cap sync android"
-  },
   "dependencies": {
     "@capacitor/android": "6.1.2",
     "@capacitor/cli": "6.1.2",

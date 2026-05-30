@@ -1,21 +1,42 @@
 <!doctype html>
-<html lang="id">
+<html lang="id" data-theme="dark">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#06111f" />
+  <meta name="theme-color" content="#06101d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>NGR Neo</title>
   <link rel="manifest" href="manifest.json" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <link rel="preconnect" href="https://unpkg.com" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIINfQJq5qM1dXPdeIEfVL0tDFd5bG2Lt7s=" crossorigin="" />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app" class="app-shell"></div>
-  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+  <div class="app" id="app">
+    <header class="topbar">
+      <button class="logo-btn" id="logoBtn" aria-label="NGR Neo">
+        <span class="neo-logo">N</span>
+      </button>
+      <div class="top-title">
+        <h1>NGR Neo</h1>
+        <p>Liquid Garage OS · Honda Beat FI 2014</p>
+      </div>
+      <button class="icon-btn" id="themeBtn" aria-label="Ganti tema"></button>
+      <button class="icon-btn" id="settingsBtn" aria-label="Settings"></button>
+    </header>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <main id="view" class="view" aria-live="polite"></main>
+  </div>
+
+  <nav class="bottom-nav" id="bottomNav" aria-label="Navigasi utama"></nav>
+
+  <div class="sheet-backdrop" id="sheetBackdrop" hidden></div>
+  <section class="sheet" id="sheet" hidden>
+    <div class="sheet-handle"></div>
+    <div id="sheetContent"></div>
+  </section>
+
   <script src="app.js"></script>
 </body>
 </html>

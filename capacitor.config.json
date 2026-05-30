@@ -1,7 +1,6 @@
 {
-  "appId": "com.projekbonek.ngrneo",
+  "appId": "com.ngr.neo.pocofit",
   "appName": "NGR Neo",
   "webDir": "www",
-  "bundledWebRuntime": false,
-  "server": { "androidScheme": "https" }
+  "bundledWebRuntime": false
 }
