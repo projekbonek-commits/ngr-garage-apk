@@ -1,7 +1,7 @@
 {
-  "name": "ngr-neo-html-mapfix",
+  "name": "ngr-neo-html-v12-polish",
   "version": "1.0.0",
-  "description": "NGR Neo HTML Mapfix",
+  "description": "NGR Neo HTML v1.2 Polish",
   "private": true,
   "scripts": {
     "build": "echo static web app",

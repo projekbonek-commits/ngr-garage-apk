@@ -1,6 +1,6 @@
 'use strict';
 
-const VERSION = 'NGR Neo HTML v1.1 Clean Home';
+const VERSION = 'NGR Neo HTML v1.2 Polish Collection';
 const STORE_KEY = 'ngr_neo_html_mapfix_v1';
 const $ = (s, r=document) => r.querySelector(s);
 const $$ = (s, r=document) => [...r.querySelectorAll(s)];
@@ -35,6 +35,9 @@ const GUIDES = {
   fi:{title:'FI Code Helper', icon:'💡', tag:'MIL/FI', danger:'Kode FI cuma arah diagnosa, bukan vonis part pasti. Tetap cek soket, kabel, dan aki.', steps:['Hitung kedipan panjang = puluhan.','Hitung kedipan pendek = satuan.','Contoh 1 panjang + 2 pendek = kode 12.','Catat kode dan gejala.','Cek aki/tegangan dan soket sensor sebelum ganti part.'], service:null}
 };
 
+const COLLECTION_CATS = ['Concept','Stop Lamp','Knalpot','Velg/Ban','Shock','Lampu','CVT','Body','Tools','Other'];
+const COLLECTION_STATUS = ['Wishlist','Target','Nabung','Bought'];
+
 const svgIcon = name => {
   const icons = {
     oil:'<svg viewBox="0 0 24 24"><path d="M8 3h8"/><path d="M9 3v4l-3 4v8a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-8l-3-4V3"/><path d="M8 14h8"/></svg>',
@@ -46,6 +49,8 @@ const svgIcon = name => {
     km:'<svg viewBox="0 0 24 24"><path d="M12 3v18"/><path d="M3 12h18"/></svg>',
     fuel:'<svg viewBox="0 0 24 24"><path d="M6 21V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v17"/><path d="M4 21h14"/><path d="M9 7h4"/><path d="M16 8h2l2 2v6.5a1.5 1.5 0 0 0 3 0V13l-3-3"/></svg>',
     money:'<svg viewBox="0 0 24 24"><path d="M3 7h18v12H3z"/><path d="M7 7V5h10v2"/><path d="M12 10v6"/></svg>',
+    collection:'<svg viewBox="0 0 24 24"><path d="M4 7h16v12H4z"/><path d="M7 7V5h10v2"/><path d="M8 12h8"/><path d="M8 16h5"/></svg>',
+    link:'<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.1 0l2-2a5 5 0 0 0-7.1-7.1l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/></svg>',
     wrench:'<svg viewBox="0 0 24 24"><path d="m14 7 3 3"/><path d="M5 19 15.5 8.5a4 4 0 0 1 5-5L17 7l-3-3 3.5-3.5a4 4 0 0 0-5 5L2 16v5h5Z"/></svg>'
   };
   return icons[name] || icons.wrench;
@@ -56,7 +61,7 @@ const DEFAULT_STATE = {
   bike:{name:'Honda BeAT FI 2014', virtualKm:0},
   kmLogs:[],
   fuel:{liters:0, tankLiters:4.0, kmpl:55, prices:{Pertalite:10000,Pertamax:12950,Shell:14530}, logs:[], balance:[]},
-  money:{monthlyBudget:250000, savings:0, savingsTarget:500000, expenses:[]},
+  money:{monthlyBudget:250000, savings:0, savingsTarget:500000, expenses:[], collections:[]},
   service:{},
   routes:{favorites:[]},
   assist:{messages:[{role:'bot', ts:now(), text:'Yo, gw Kang Rusdi. Input KM/fuel/service dulu, nanti gw bantu scan motor lu.'}], problems:[]},
@@ -259,13 +264,38 @@ function renderFuel(){
     <div class="section-title"><h2>Fuel Balance</h2><small>naik/turun</small></div><div class="card"><canvas id="fuelChart" class="chart"></canvas></div>
     <div class="section-title"><h2>History</h2><small>${state.fuel.logs.length}</small></div><div class="list">${state.fuel.logs.slice(0,14).map(x=>`<div class="item"><div class="item-icon">${svgIcon('fuel')}</div><div class="item-main"><b>${x.type} · ${fmtL(x.liters)}</b><span>${fmtDate(x.ts)} ${fmtTime(x.ts)}</span></div><b>${fmtRp(x.amount)}</b></div>`).join('') || '<div class="card tight muted small">Belum ada isi BBM.</div>'}</div>`;
 }
+function collectionTotal(status){ return state.money.collections.filter(x=>!status || x.status===status).reduce((a,x)=>a+num(x.price),0); }
+function renderCollectionCard(c){
+  const img = c.img ? `<img src="${esc(c.img)}" alt="${esc(c.title)}" loading="lazy" />` : svgIcon('collection');
+  return `<button class="collection-card" data-action="collection-detail" data-id="${c.id}">
+    <span class="status-badge">${esc(c.status||'Wishlist')}</span>
+    <div class="thumb">${img}</div>
+    <div class="body"><b>${esc(c.title)}</b><small>${esc(c.cat||'Other')} ${c.link?'· ada link':''}</small><div class="price">${fmtRp(c.price)}</div></div>
+  </button>`;
+}
 function renderMoney(){
   const spent=monthExpenses(), pct=state.money.monthlyBudget?spent/state.money.monthlyBudget*100:0;
+  const cols=state.money.collections || [];
+  const target=collectionTotal();
+  const bought=collectionTotal('Bought');
   return `
     <div class="section-title"><h2>Money</h2><small>${pct.toFixed(0)}% budget</small></div>
-    <div class="card"><div class="between"><div><div class="label">Bulan ini</div><div class="big">${fmtRp(spent)}</div></div><span class="pill ${pct>90?'red':pct>70?'blue':'green'}">Budget ${fmtRp(state.money.monthlyBudget)}</span></div><div class="progress" style="margin-top:13px"><i style="--w:${clamp(pct,0,100)}%"></i></div><div class="chips" style="margin-top:13px"><button class="chip" data-action="expense-sheet">Tambah Expense</button><button class="chip" data-action="saving-add" data-amount="10000">Celengan +10k</button><button class="chip" data-action="saving-add" data-amount="25000">+25k</button></div></div>
+    <div class="card">
+      <div class="money-overview">
+        <div><div class="label">Bulan ini</div><div class="big">${fmtRp(spent)}</div><div class="progress" style="margin-top:13px"><i style="--w:${clamp(pct,0,100)}%"></i></div></div>
+        <div class="money-mini"><b>${fmtRp(state.money.savings)}</b><span>Celengan</span><b style="margin-top:10px">${fmtRp(target)}</b><span>Target part</span></div>
+      </div>
+      <div class="chips" style="margin-top:13px"><button class="chip" data-action="expense-sheet">Tambah Expense</button><button class="chip" data-action="collection-sheet">Tambah Koleksi</button><button class="chip" data-action="saving-add" data-amount="10000">Celengan +10k</button><button class="chip" data-action="saving-add" data-amount="25000">+25k</button></div>
+    </div>
+
+    <div class="section-title"><h2>Garage Collection</h2><small>${cols.length} item</small></div>
+    <div class="card">
+      <div class="collection-head"><div><b>Konsep & part target</b><p>Masukin style motor, stop lamp, knalpot, velg, link toko, dan foto biar gak lupa.</p></div><span class="pill blue">Bought ${fmtRp(bought)}</span></div>
+      ${cols.length?`<div class="collection-grid">${cols.slice(0,8).map(renderCollectionCard).join('')}</div>`:`<div class="collection-empty">Belum ada koleksi. Tambah stop lamp, knalpot, style Thai/retro, atau part incaran.</div>`}
+    </div>
+
     <div class="section-title"><h2>Breakdown</h2><small>kategori</small></div><div class="card"><canvas id="moneyChart" class="chart"></canvas></div>
-    <div class="section-title"><h2>Transaksi</h2><small>${state.money.expenses.length}</small></div><div class="list">${state.money.expenses.slice(0,14).map(e=>`<div class="item"><div class="item-icon">${e.cat==='Fuel'?svgIcon('fuel'):e.cat==='Service'?svgIcon('wrench'):svgIcon('money')}</div><div class="item-main"><b>${esc(e.title)}</b><span>${e.cat} · ${fmtDate(e.ts)} ${e.note?`· ${esc(e.note)}`:''}</span></div><b>${fmtRp(e.amount)}</b></div>`).join('') || '<div class="card tight muted small">Belum ada transaksi.</div>'}</div>`;
+    <div class="section-title"><h2>Transaksi</h2><small>${state.money.expenses.length}</small></div><div class="list">${state.money.expenses.slice(0,10).map(e=>`<div class="item"><div class="item-icon">${e.cat==='Fuel'?svgIcon('fuel'):e.cat==='Service'?svgIcon('wrench'):e.cat==='Modif'?svgIcon('collection'):svgIcon('money')}</div><div class="item-main"><b>${esc(e.title)}</b><span>${e.cat} · ${fmtDate(e.ts)} ${e.note?`· ${esc(e.note)}`:''}</span></div><b>${fmtRp(e.amount)}</b></div>`).join('') || '<div class="card tight muted small">Belum ada transaksi.</div>'}</div>`;
 }
 function renderAssist(){
   const guideBtns=Object.entries(GUIDES).map(([k,g])=>`<button class="item" data-action="guide" data-key="${k}"><div class="item-icon">${g.icon}</div><div class="item-main"><b>${g.title}</b><span>${g.tag} · step-by-step</span></div></button>`).join('');
@@ -286,6 +316,11 @@ document.addEventListener('click', e=>{
   if(a==='km-sheet') return openKmSheet();
   if(a==='fuel-sheet') return openFuelSheet();
   if(a==='expense-sheet') return openExpenseSheet();
+  if(a==='collection-sheet') return openCollectionSheet();
+  if(a==='collection-detail') return openCollectionDetail(el.dataset.id);
+  if(a==='collection-open') return openCollectionLink(el.dataset.id);
+  if(a==='collection-delete') return deleteCollection(el.dataset.id);
+  if(a==='collection-bought') return markCollectionBought(el.dataset.id);
   if(a==='service-sheet') return openServiceSheet();
   if(a==='km-add') return addDailyKm(num(el.dataset.km), 'Quick KM');
   if(a==='fuel-add') return addFuel(el.dataset.type, num(el.dataset.liter));
@@ -304,17 +339,52 @@ document.addEventListener('click', e=>{
 });
 $('#fab').addEventListener('click', openQuickSheet);
 $('.sheet-backdrop').addEventListener('click', closeSheet);
-document.addEventListener('change', e=>{ if(e.target?.id==='importFile') importData(e); });
+document.addEventListener('change', e=>{ if(e.target?.id==='importFile') importData(e); if(e.target?.id==='inColPhoto') previewCollectionPhoto(e); });
 
 function showSheet(html){ $('#sheetContent').innerHTML=html; $('#sheetWrap').classList.add('show'); $('#sheetWrap').setAttribute('aria-hidden','false'); }
 function closeSheet(){ $('#sheetWrap').classList.remove('show'); $('#sheetWrap').setAttribute('aria-hidden','true'); }
-function openQuickSheet(){ showSheet(`<h2>Quick Add</h2><div class="quick-grid"><button class="quick primary" onclick="closeSheet();setTimeout(openKmSheet,90)">${svgIcon('km')}KM</button><button class="quick" onclick="closeSheet();setTimeout(openFuelSheet,90)">${svgIcon('fuel')}Fuel</button><button class="quick" onclick="closeSheet();setTimeout(openServiceSheet,90)">${svgIcon('wrench')}Service</button><button class="quick" onclick="closeSheet();setTimeout(openExpenseSheet,90)">${svgIcon('money')}Money</button></div><button class="btn block" style="margin-top:12px" onclick="closeSheet()">Tutup</button>`); }
+function openQuickSheet(){ showSheet(`<h2>Quick Add</h2><div class="quick-grid"><button class="quick primary" onclick="closeSheet();setTimeout(openKmSheet,90)">${svgIcon('km')}KM</button><button class="quick" onclick="closeSheet();setTimeout(openFuelSheet,90)">${svgIcon('fuel')}Fuel</button><button class="quick" onclick="closeSheet();setTimeout(openServiceSheet,90)">${svgIcon('wrench')}Service</button><button class="quick" onclick="closeSheet();setTimeout(openExpenseSheet,90)">${svgIcon('money')}Money</button><button class="quick" onclick="closeSheet();setTimeout(openCollectionSheet,90)">${svgIcon('collection')}Koleksi</button></div><button class="btn block" style="margin-top:12px" onclick="closeSheet()">Tutup</button>`); }
 function openKmSheet(){ showSheet(`<h2>Input Daily KM</h2><div class="field"><label>KM hari ini</label><input id="inKm" type="number" step="0.1" placeholder="contoh 12.5" /></div><div class="field"><label>Catatan</label><input id="inKmNote" placeholder="sekolah, bengkel, muter sore" /></div><button class="btn primary block" onclick="submitKm()">Simpan KM</button>`); }
 function submitKm(){ const km=num($('#inKm').value); addDailyKm(km, $('#inKmNote').value || 'Daily KM'); closeSheet(); }
 function openFuelSheet(){ showSheet(`<h2>Isi BBM</h2><div class="field"><label>Jenis</label><select id="inFuelType"><option>Pertalite</option><option>Pertamax</option><option>Shell</option></select></div><div class="grid2"><div class="field"><label>Liter</label><input id="inFuelL" type="number" step="0.01" placeholder="1.5" /></div><div class="field"><label>Total Rp opsional</label><input id="inFuelRp" type="number" placeholder="auto" /></div></div><button class="btn primary block" onclick="submitFuel()">Simpan Fuel</button>`); }
 function submitFuel(){ const type=$('#inFuelType').value, liters=num($('#inFuelL').value), amount=num($('#inFuelRp').value, liters*(state.fuel.prices[type]||10000)); addFuel(type, liters, amount); closeSheet(); }
 function openExpenseSheet(){ showSheet(`<h2>Tambah Expense</h2><div class="field"><label>Judul</label><input id="inExpTitle" placeholder="contoh beli oli" /></div><div class="grid2"><div class="field"><label>Kategori</label><select id="inExpCat"><option>Service</option><option>Fuel</option><option>Modif</option><option>Tools</option><option>Other</option></select></div><div class="field"><label>Nominal</label><input id="inExpAmount" type="number" /></div></div><div class="field"><label>Catatan</label><input id="inExpNote" /></div><button class="btn primary block" onclick="submitExpense()">Simpan Money</button>`); }
+
 function submitExpense(){ addExpense($('#inExpCat').value, $('#inExpTitle').value || 'Expense', num($('#inExpAmount').value), $('#inExpNote').value||''); closeSheet(); }
+function openCollectionSheet(){
+  const cats=COLLECTION_CATS.map(c=>`<option>${c}</option>`).join('');
+  const stats=COLLECTION_STATUS.map(s=>`<option>${s}</option>`).join('');
+  showSheet(`<h2>Tambah Koleksi Garage</h2>
+    <div class="field"><label>Nama item / konsep</label><input id="inColTitle" placeholder="Stop lamp running text, knalpot, Thai look..." /></div>
+    <div class="grid2"><div class="field"><label>Kategori</label><select id="inColCat">${cats}</select></div><div class="field"><label>Status</label><select id="inColStatus">${stats}</select></div></div>
+    <div class="grid2"><div class="field"><label>Target harga</label><input id="inColPrice" type="number" placeholder="250000" /></div><div class="field"><label>Link toko/referensi</label><input id="inColLink" placeholder="https://..." /></div></div>
+    <div class="field"><label>Foto URL opsional</label><input id="inColImg" placeholder="https://gambar..." /></div>
+    <label class="file-like"><input id="inColPhoto" type="file" accept="image/*" style="display:none"/>Upload foto dari HP</label>
+    <div id="colPreview" class="photo-preview" style="margin-top:10px">Belum ada foto</div>
+    <div class="field"><label>Catatan</label><textarea id="inColNote" placeholder="Ukuran, warna, toko, cocok sama konsep apa..."></textarea></div>
+    <button class="btn primary block" onclick="submitCollection()">Simpan Koleksi</button>`);
+}
+function previewCollectionPhoto(e){
+  const f=e.target.files?.[0]; if(!f) return;
+  if(f.size>1200000) toast('Foto kegedean, coba screenshot/kompres dulu');
+  const fr=new FileReader(); fr.onload=()=>{ const prev=$('#colPreview'); if(prev){ prev.innerHTML=`<img src="${fr.result}" alt="preview" />`; prev.dataset.img=fr.result; } }; fr.readAsDataURL(f);
+}
+function submitCollection(){
+  const img=($('#colPreview')?.dataset.img || $('#inColImg')?.value || '').trim();
+  const title=($('#inColTitle')?.value || '').trim();
+  if(!title) return toast('Nama item belum diisi');
+  state.money.collections.unshift({id:id(),ts:now(),title,cat:$('#inColCat')?.value||'Other',status:$('#inColStatus')?.value||'Wishlist',price:num($('#inColPrice')?.value),link:($('#inColLink')?.value||'').trim(),img,note:($('#inColNote')?.value||'').trim()});
+  save(); closeSheet(); render(); toast('Koleksi disimpan');
+}
+function openCollectionDetail(cid){
+  const c=state.money.collections.find(x=>x.id===cid); if(!c) return;
+  const img=c.img?`<div class="photo-preview"><img src="${esc(c.img)}" alt="${esc(c.title)}" /></div>`:'<div class="photo-preview">Belum ada foto</div>';
+  showSheet(`<h2>${esc(c.title)}</h2>${img}<div class="grid2" style="margin-top:12px"><div class="card tight"><div class="label">Kategori</div><b>${esc(c.cat)}</b></div><div class="card tight"><div class="label">Harga target</div><b>${fmtRp(c.price)}</b></div></div><p class="small muted">${esc(c.note||'Belum ada catatan.')}</p><div class="link-row"><button class="btn" onclick="markCollectionBought('${c.id}')">Tandai Bought</button><button class="btn" onclick="openCollectionLink('${c.id}')">Buka Link</button></div><button class="btn danger block" style="margin-top:10px" onclick="deleteCollection('${c.id}')">Hapus</button>`);
+}
+function openCollectionLink(cid){ const c=state.money.collections.find(x=>x.id===cid); if(!c?.link) return toast('Belum ada link'); window.open(c.link, '_blank'); }
+function markCollectionBought(cid){ const c=state.money.collections.find(x=>x.id===cid); if(!c) return; c.status='Bought'; if(c.price) addExpense('Modif', c.title, c.price, 'Garage Collection'); save(); closeSheet(); render(); toast('Masuk Bought + expense'); }
+function deleteCollection(cid){ state.money.collections=state.money.collections.filter(x=>x.id!==cid); save(); closeSheet(); render(); toast('Koleksi dihapus'); }
+
 function openServiceSheet(){ const opts=SERVICES.map(s=>`<option value="${s.key}">${s.name}</option>`).join(''); showSheet(`<h2>Catat Service</h2><div class="field"><label>Part</label><select id="inService">${opts}</select></div><div class="field"><label>Biaya opsional</label><input id="inServiceCost" type="number" placeholder="0" /></div><button class="btn primary block" onclick="submitService()">Catat sudah diganti</button>`); }
 function submitService(){ const key=$('#inService').value; const cost=num($('#inServiceCost').value); markService(key, cost); closeSheet(); }
 function openServiceDetail(key){ const s=SERVICES.find(x=>x.key===key); if(!s) return; const h=serviceHealth(s), r=serviceRemain(s); showSheet(`<h2>${s.name}</h2><div class="card tight"><div class="between"><div><div class="label">Health</div><div class="big">${h.toFixed(0)}%</div></div><span class="pill ${h<30?'red':'green'}">${fmtKm(r.km)} / ${r.days} hari</span></div><p class="small muted">${s.note}</p></div><button class="btn primary block" style="margin-top:12px" onclick="markService('${s.key}',0);closeSheet()">Catat sudah diganti</button>`); }
@@ -424,6 +494,7 @@ async function askRusdi(q){
 function localRusdi(q){
   const low=q.toLowerCase();
   if(low.includes('rute')||low.includes('maps')) return routeDraft.result ? `Rute ${fmtKm(routeDraft.result.km)} via ${routeDraft.result.provider}. Estimasi ${fmtRp(routeDraft.result.cost)}. Fuel range ${fmtKm(fuelRange())}.` : 'Pilih start + tujuan di Maps, lalu Hitung Jalan dulu.';
+  if(low.includes('koleksi')||low.includes('part')||low.includes('modif')) return `Koleksi garage ada ${(state.money.collections||[]).length} item dengan target ${fmtRp(collectionTotal())}. Kalau budget bulanan mulai sesak, beli part status Target dulu, Wishlist belakangan.`;
   if(low.includes('boros')||low.includes('uang')||low.includes('budget')) return `Money bulan ini ${fmtRp(monthExpenses())} dari budget ${fmtRp(state.money.monthlyBudget)}. Kalau udah lewat 75%, tahan modif dulu, prioritaskan service.`;
   if(low.includes('busi')||low.includes('mati')) return 'Cek cepat: bensin, indikator FI, aki/starter, sekring, kop busi. Kalau bunyi kasar atau mesin mati-mati, jangan dipaksa jauh.';
   return localScan();
@@ -441,4 +512,4 @@ function importData(e){ const file=e.target.files?.[0]; if(!file) return; const 
 if('serviceWorker' in navigator) navigator.serviceWorker.register('service-worker.js').catch(()=>{});
 render();
 
-Object.assign(window, {closeSheet, openKmSheet, openFuelSheet, openServiceSheet, openExpenseSheet, submitKm, submitFuel, submitExpense, submitService, markService, problemFromGuide, submitManualRoute, saveSettings, resetData, exportData});
+Object.assign(window, {closeSheet, openKmSheet, openFuelSheet, openServiceSheet, openExpenseSheet, submitKm, submitFuel, submitExpense, openCollectionSheet, submitCollection, previewCollectionPhoto, openCollectionDetail, openCollectionLink, markCollectionBought, deleteCollection, submitService, markService, problemFromGuide, submitManualRoute, saveSettings, resetData, exportData});

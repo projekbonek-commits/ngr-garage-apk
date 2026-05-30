@@ -1,3 +1,3 @@
-# NGR Neo HTML v1.1 Clean Home
+# NGR Neo HTML v1.2 Polish Collection
 
-Clean Home Repair: home lebih rapi, fokus identitas motor, streak ringkas, service prioritas cukup satu, FAB disembunyikan di Home/Maps, map lebih kecil dan chart fuel mulai dari 0L.
+Update fokus finishing: UI lebih smooth, logo baru, font/spacing dipoles, dan Money sekarang punya Garage Collection buat konsep/style motor, stop lamp, knalpot, velg, link, foto, target harga.
